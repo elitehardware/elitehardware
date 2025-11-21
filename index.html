@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELITE X3D ∞ | 9950X3D + RTX 5090 | Crypto Only</title>
+    <meta name="description" content="The most exclusive gaming PC on Earth. Ryzen 9 9950X3D + RTX 5090 32GB in HYTE Y70 Touch Infinite Snow White. 100 units. Crypto only.">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Exo+2:wght@100;300;600;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
+
+    <style>
+        :root {
+            --cyan: #00ffff;
+            --magenta: #ff00ff;
+            --green: #00ff9d;
+            --bg: #000;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background: var(--bg); color:#fff; font-family:'Exo 2',sans-serif; overflow-x:hidden; }
+        canvas { position:fixed; top:0; left:0; z-index:-1; }
+
+        header { height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; position:relative; }
+        #gpu-3d { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:80vw; height:80vh; z-index:1; }
+        .content { position:relative; z-index:2; padding:0 20px; }
+
+        h1 {
+            font-family:'Orbitron',sans-serif;
+            font-size:14vw;
+            background:linear-gradient(90deg,var(--cyan),var(--magenta));
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            text-shadow:0 0 60px rgba(0,255,255,0.7);
+        }
+
+        .price-live { font-size:6rem; font-weight:900; color:var(--green); text-shadow:0 0 40px var(--green); }
+        .badge { background:linear-gradient(45deg,#ff0066,#ff00ff); padding:15px 50px; border-radius:50px; letter-spacing:4px; animation:glow 2s infinite alternate; }
+        @keyframes glow { from{box-shadow:0 0 20px #ff0066;} to{box-shadow:0 0 50px #ff00ff;} }
+
+        section { padding:150px 5%; max-width:1800px; margin:auto; }
+
+        /* PC Image */
+        .pc-showcase img {
+            max-width:90%; 
+            border-radius:20px; 
+            border:2px solid var(--cyan); 
+            box-shadow:0 0 40px rgba(0,255,255,0.4);
+        }
+
+        /* Checkout Form */
+        .checkout-container {
+            background:rgba(10,10,30,0.8);
+            padding:50px;
+            max-width:900px;
+            margin:60px auto;
+            border-radius:25px;
+            border:1px solid var(--cyan);
+            box-shadow:0 0 40px rgba(0,255,255,0.2);
+        }
+        .checkout-container h2 { 
+            font-size:3rem; 
+            color:var(--cyan); 
+            margin-bottom:30px; 
+            text-align:center;
+        }
+        .checkout-container input {
+            width:100%; 
+            padding:20px; 
+            margin:15px 0; 
+            border-radius:15px; 
+            border:none;
+            background:#111; 
+            color:#fff; 
+            font-size:1.3rem;
+            border:1px solid #222;
+        }
+        .checkout-btn {
+            width:100%; 
+            padding:25px; 
+            background:var(--green);
+            color:#000; 
+            font-size:2rem; 
+            font-weight:900;
+            border-radius:20px; 
+            cursor:pointer;
+            margin-top:20px;
+            transition:0.4s;
+        }
+        .checkout-btn:hover { transform:scale(1.05); background:var(--cyan); }
+
+        /* Payment Reveal */
+        #payment-section {
+            display:none;
+            text-align:center;
+            margin-top:40px;
+        }
+        #payment-section code {
+            font-size:1.8rem;
+            color:var(--cyan);
+        }
+        #payment-section img { margin-top:20px; }
+
+        /* Footer */
+        footer { text-align:center; padding:40px; font-size:1.5rem; color:var(--cyan); }
+
+    </style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<header>
+    <div id="gpu-3d"></div>
+    <div class="content">
+        <h1>ELITE X3D ∞</h1>
+        <p style="font-size:2.5rem; letter-spacing:5px;">Ryzen 9 9950X3D ▪ RTX 5090 32GB ▪ Snow Infinite</p>
+        <div class="price-live">$6,999 USD</div>
+        <div class="crypto-price" id="live-price">≈ 3.41 XMR</div>
+        <div class="badge">100 UNITS • CRYPTOCURRENCY ONLY • NO REFUNDS</div>
+    </div>
+</header>
+
+<!-- PC IMAGE -->
+<section class="pc-showcase" style="text-align:center; padding:100px 20px;">
+    <h2 style="font-size:4rem; margin-bottom:30px;">ELITE X3D — BUILD PREVIEW</h2>
+    <img src="pc-placeholder.png" alt="ELITE X3D PC Preview">
+</section>
+
+<!-- CHECKOUT SIMULATION -->
+<section class="checkout-container">
+    <h2>Checkout — Shipping Information</h2>
+
+    <input type="text" id="fullname" placeholder="Full Name">
+    <input type="email" id="email" placeholder="Email Address">
+    <input type="text" id="address" placeholder="Home Address">
+    <input type="text" id="city" placeholder="City">
+    <input type="text" id="zip" placeholder="ZIP / Postal Code">
+    <input type="text" id="phone" placeholder="Phone Number">
+
+    <button class="checkout-btn" onclick="showPayment()">Continue to Payment</button>
+
+    <div id="payment-section">
+        <h2>Payment — Monero (XMR)</h2>
+        <p style="font-size:1.8rem; margin-bottom:15px;">Send exactly: <strong>3.41 XMR</strong></p>
+
+        <code>86sd9a1jd8a19dj1j9d1j9dj1jd91jd91dj<br>9dj19d1j9d1j9dj19dj1jd9jd19j19</code>
+
+        <div>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=monero_payment_address" alt="XMR QR">
+        </div>
+
+        <p style="margin-top:20px; opacity:0.8;">Order will be confirmed after 10 network confirmations.</p>
+    </div>
+</section>
+
+<footer>Contact: elitehardware@protonmail.com</footer>
+
+<script>
+function showPayment() {
+    document.getElementById("payment-section").style.display = "block";
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+</script>
+
+</body>
+</html>
