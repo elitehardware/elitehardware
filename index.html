@@ -75,6 +75,83 @@
       background: #ef4444;
       color: white;
     }
+    .admin-panel {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 2px solid #ef4444;
+      border-radius: 12px;
+      padding: 16px;
+      min-width: 200px;
+      z-index: 1000;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .admin-toggle {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 56px;
+      height: 56px;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 999;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+      transition: all 0.3s ease;
+    }
+    .admin-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.6);
+    }
+    .delete-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 600;
+    }
+    .delete-btn:hover {
+      background: #dc2626;
+      transform: scale(1.05);
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .modal-content {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
   </style>
 </head>
 <body class="min-h-screen py-8 px-4">
@@ -82,6 +159,35 @@
   <div class="db-status connecting" id="dbStatus">
     <span class="pulse-dot inline-block w-2 h-2 bg-white rounded-full"></span>
     <span>Connecting to database...</span>
+  </div>
+
+  <!-- Admin Toggle Button -->
+  <button class="admin-toggle" id="adminToggle" title="Admin Panel">🔒</button>
+
+  <!-- Admin Panel -->
+  <div class="admin-panel" id="adminPanel" style="display: none;">
+    <h3 class="text-lg font-bold text-red-500 mb-3 flex items-center gap-2">
+      🛡️ Admin Panel
+    </h3>
+    <div class="space-y-2 text-sm">
+      <div class="flex items-center justify-between bg-slate-800 p-2 rounded">
+        <span>Total Posts:</span>
+        <span class="font-bold text-green-400" id="adminTotalPosts">0</span>
+      </div>
+      <div class="flex items-center justify-between bg-slate-800 p-2 rounded">
+        <span>Active Now:</span>
+        <span class="font-bold text-blue-400" id="adminActivePosts">0</span>
+      </div>
+      <button onclick="window.clearAllPosts()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded mt-3 transition-all">
+        🗑️ Clear All Posts
+      </button>
+      <button onclick="window.toggleAdminMode()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded transition-all">
+        ✏️ Toggle Delete Mode
+      </button>
+      <div class="text-xs text-gray-500 mt-2 pt-2 border-t border-slate-700">
+        Delete mode: <span id="adminModeStatus" class="font-bold text-red-400">OFF</span>
+      </div>
+    </div>
   </div>
 
   <div class="max-w-4xl mx-auto">
@@ -177,6 +283,10 @@
   let db, postsRef;
   const RATE_LIMIT_KEY = 'redsec_last_post';
   const RATE_LIMIT_MS = 30000;
+  const ADMIN_PASSWORD = 'redsec2025'; // Change this to your secure password
+  let isAdminMode = false;
+  let isAdminAuthenticated = false;
+  let allPostsData = null;
 
   // Update database status indicator
   function updateDBStatus(status, message) {
@@ -213,7 +323,9 @@
     // Listen for real-time updates
     onValue(postsRef, (snapshot) => {
       updateDBStatus('connected', 'Connected • Live updates enabled');
-      renderPosts(snapshot.val());
+      allPostsData = snapshot.val();
+      renderPosts(allPostsData);
+      updateAdminStats(allPostsData);
     }, (error) => {
       console.error("Database read failed:", error);
       updateDBStatus('error', 'Connection failed');
@@ -398,7 +510,10 @@
         <div class="card bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700">
           <div class="flex justify-between items-start mb-3">
             <div class="font-bold text-xl text-red-400">${p.name}</div>
-            <div class="time-badge text-gray-400">⏱️ ${timeAgo(p.time)}</div>
+            <div class="flex items-center gap-2">
+              <div class="time-badge text-gray-400">⏱️ ${timeAgo(p.time)}</div>
+              ${isAdminMode ? `<button onclick="window.deletePost('${p.id}', '${p.name.replace(/'/g, "\\'")}', event)" class="delete-btn">🗑️</button>` : ''}
+            </div>
           </div>
           <div class="text-sm my-3 flex flex-wrap gap-2">
             <span class="bg-slate-700 px-3 py-1 rounded-full">🎮 ${p.platform}</span>
@@ -422,15 +537,15 @@
   }
 
   document.getElementById("search").addEventListener('input', () => {
-    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
+    if (db) renderPosts(allPostsData);
   });
   
   document.getElementById("filterPlatform").addEventListener('change', () => {
-    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
+    if (db) renderPosts(allPostsData);
   });
   
   document.getElementById("filterRegion").addEventListener('change', () => {
-    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
+    if (db) renderPosts(allPostsData);
   });
 
   // Expose functions globally for inline handlers
