@@ -48,9 +48,42 @@
       font-size: 0.75rem;
       opacity: 0.8;
     }
+    .db-status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 1000;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+    }
+    .db-status.connecting {
+      background: #f59e0b;
+      color: white;
+    }
+    .db-status.connected {
+      background: #10b981;
+      color: white;
+    }
+    .db-status.error {
+      background: #ef4444;
+      color: white;
+    }
   </style>
 </head>
 <body class="min-h-screen py-8 px-4">
+  <!-- Database Status Badge -->
+  <div class="db-status connecting" id="dbStatus">
+    <span class="pulse-dot inline-block w-2 h-2 bg-white rounded-full"></span>
+    <span>Connecting to database...</span>
+  </div>
+
   <div class="max-w-4xl mx-auto">
     <h1 class="text-4xl md:text-5xl font-bold text-center mb-2 text-red-500">RedSec LFG</h1>
     <p class="text-center text-lg mb-8">Find a squad in seconds • No Discord required</p>
@@ -145,19 +178,45 @@
   const RATE_LIMIT_KEY = 'redsec_last_post';
   const RATE_LIMIT_MS = 30000;
 
+  // Update database status indicator
+  function updateDBStatus(status, message) {
+    const statusEl = document.getElementById('dbStatus');
+    statusEl.className = `db-status ${status}`;
+    
+    const icon = status === 'connected' ? '✓' : status === 'error' ? '✗' : '⟳';
+    const pulseClass = status === 'connecting' ? 'pulse-dot inline-block w-2 h-2 bg-white rounded-full' : 'inline-block w-2 h-2 bg-white rounded-full';
+    
+    statusEl.innerHTML = `
+      <span class="${pulseClass}">${status === 'connected' || status === 'error' ? '' : ''}</span>
+      <span>${icon} ${message}</span>
+    `;
+
+    // Auto-hide success message after 3 seconds
+    if (status === 'connected') {
+      setTimeout(() => {
+        statusEl.style.opacity = '0.7';
+        statusEl.style.transform = 'scale(0.9)';
+      }, 3000);
+    }
+  }
+
   // Initialize Firebase
   try {
+    updateDBStatus('connecting', 'Connecting to database...');
+    
     const app = initializeApp(firebaseConfig);
     db = getDatabase(app);
     postsRef = ref(db, 'lfg-posts');
     
-    console.log("✅ Firebase connected successfully!");
+    console.log("✅ Firebase initialized");
     
     // Listen for real-time updates
     onValue(postsRef, (snapshot) => {
+      updateDBStatus('connected', 'Connected • Live updates enabled');
       renderPosts(snapshot.val());
     }, (error) => {
       console.error("Database read failed:", error);
+      updateDBStatus('error', 'Connection failed');
       showToast("Failed to load posts. Check Firebase setup.", "error");
       document.getElementById("count").innerHTML = 
         `<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span> Database error - check console`;
@@ -168,6 +227,7 @@
     
   } catch (err) {
     console.error("Firebase init failed:", err);
+    updateDBStatus('error', 'Connection failed');
     showToast("Failed to connect to Firebase", "error");
     document.getElementById("listings").innerHTML = `
       <div class="col-span-full bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
