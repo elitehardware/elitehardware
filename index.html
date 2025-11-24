@@ -88,7 +88,7 @@
 }'></textarea>
       </div>
       
-      <button onclick="saveFirebaseConfig()" class="w-full bg-white text-red-600 font-bold py-3 rounded-lg hover:bg-gray-100 transition-all">
+      <button id="saveConfigBtn" class="w-full bg-white text-red-600 font-bold py-3 rounded-lg hover:bg-gray-100 transition-all">
         ✅ Save Config & Start Using
       </button>
       
@@ -188,7 +188,8 @@
     }
   }
 
-  window.saveFirebaseConfig = function() {
+  // Attach save button event listener
+  document.getElementById('saveConfigBtn').addEventListener('click', function() {
     const configText = document.getElementById('firebaseConfig').value.trim();
     try {
       const config = JSON.parse(configText);
@@ -204,7 +205,7 @@
     } catch (err) {
       showToast("Invalid JSON format. Please check your config.", "error");
     }
-  };
+  });
 
   function initFirebase(config) {
     try {
@@ -388,7 +389,7 @@
           </div>
           ${p.note ? `<div class="text-sm text-gray-400 mb-4 italic">"${p.note}"</div>` : ''}
           <a href="${p.discord.startsWith('http') ? p.discord : '#'}" 
-             ${p.discord.startsWith('http') ? 'target="_blank" rel="noopener noreferrer"' : `onclick="showToast('Discord: ${p.discord}'); return false;"`}
+             ${p.discord.startsWith('http') ? 'target="_blank" rel="noopener noreferrer"' : `onclick="window.showDiscordTag('${p.discord}'); return false;"`}
              class="block text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-all">
              ${p.discord.startsWith('http') ? '💬 JOIN DISCORD' : '💬 ' + p.discord}
           </a>
@@ -408,7 +409,9 @@
     if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
   });
 
+  // Expose showToast globally for inline handlers
   window.showToast = showToast;
+  window.showDiscordTag = (tag) => showToast(`Discord: ${tag}`);
 </script>
 
 <footer class="text-center mt-20 text-gray-600 text-sm">
