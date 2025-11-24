@@ -288,6 +288,54 @@
   let isAdminAuthenticated = false;
   let allPostsData = null;
 
+  // ===== DEFINE ALL FUNCTIONS FIRST =====
+  
+  function showToast(message, type = 'success') {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.style.background = type === 'error' ? '#ef4444' : '#10b981';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  function sanitize(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function validateDiscord(input) {
+    const discordLinkPattern = /discord\.(gg|com\/invite)\//i;
+    const discordTagPattern = /^.{2,32}#\d{4}$|^@?[a-z0-9_.]{2,32}$/i;
+    return discordLinkPattern.test(input) || discordTagPattern.test(input);
+  }
+
+  function canPost() {
+    const lastPost = localStorage.getItem(RATE_LIMIT_KEY);
+    if (lastPost) {
+      const timeSince = Date.now() - parseInt(lastPost);
+      if (timeSince < RATE_LIMIT_MS) {
+        const remaining = Math.ceil((RATE_LIMIT_MS - timeSince) / 1000);
+        showToast(`Please wait ${remaining}s before posting again`, 'error');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function timeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  }
+
   // Update database status indicator
   function updateDBStatus(status, message) {
     const statusEl = document.getElementById('dbStatus');
@@ -308,6 +356,34 @@
         statusEl.style.transform = 'scale(0.9)';
       }, 3000);
     }
+  }
+
+  // Admin Panel Functions
+  function updateAdminStats(postsData) {
+    const totalEl = document.getElementById('adminTotalPosts');
+    const activeEl = document.getElementById('adminActivePosts');
+    
+    console.log('Updating admin stats:', postsData);
+    
+    if (!totalEl || !activeEl) {
+      console.error('Admin stat elements not found');
+      return;
+    }
+    
+    if (!postsData) {
+      totalEl.textContent = '0';
+      activeEl.textContent = '0';
+      console.log('No posts data');
+      return;
+    }
+
+    const allPosts = Object.entries(postsData).map(([key, post]) => ({ ...post, id: key }));
+    const activePosts = allPosts.filter(p => p && p.expires && p.expires > Date.now());
+    
+    console.log('Total posts:', allPosts.length, 'Active posts:', activePosts.length);
+    
+    totalEl.textContent = allPosts.length;
+    activeEl.textContent = activePosts.length;
   }
 
   // Admin authentication
@@ -342,6 +418,76 @@
       panel.style.display = 'none';
     }
   };
+
+  function renderPosts(postsData) {
+    let posts = [];
+    
+    if (postsData) {
+      posts = Object.entries(postsData)
+        .map(([key, post]) => ({ ...post, id: key }))
+        .filter(p => p.expires > Date.now() && p.name && p.discord);
+    }
+
+    const search = document.getElementById("search").value.toLowerCase();
+    const filterPlatform = document.getElementById("filterPlatform").value;
+    const filterRegion = document.getElementById("filterRegion").value;
+
+    if (search) {
+      posts = posts.filter(p => 
+        p.name.toLowerCase().includes(search) ||
+        p.discord.toLowerCase().includes(search) ||
+        p.platform.toLowerCase().includes(search) ||
+        p.region.toLowerCase().includes(search) ||
+        (p.note && p.note.toLowerCase().includes(search))
+      );
+    }
+
+    if (filterPlatform) posts = posts.filter(p => p.platform === filterPlatform);
+    if (filterRegion) posts = posts.filter(p => p.region === filterRegion);
+
+    document.getElementById("count").innerHTML = 
+      `<span class="pulse-dot inline-block w-2 h-2 bg-green-500 rounded-full"></span> ${posts.length} players looking right now`;
+
+    const listingsEl = document.getElementById("listings");
+    
+    if (posts.length === 0) {
+      listingsEl.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">📭 No players found. Be the first to post!</div>';
+      return;
+    }
+
+    listingsEl.innerHTML = posts
+      .sort((a,b) => b.time - a.time)
+      .map(p => `
+        <div class="card bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700">
+          <div class="flex justify-between items-start mb-3">
+            <div class="font-bold text-xl text-red-400">${p.name}</div>
+            <div class="flex items-center gap-2">
+              <div class="time-badge text-gray-400">⏱️ ${timeAgo(p.time)}</div>
+              ${isAdminMode ? `<button onclick="window.deletePost('${p.id}', '${p.name.replace(/'/g, "\\'")}', event)" class="delete-btn">🗑️</button>` : ''}
+            </div>
+          </div>
+          <div class="text-sm my-3 flex flex-wrap gap-2">
+            <span class="bg-slate-700 px-3 py-1 rounded-full">🎮 ${p.platform}</span>
+            <span class="bg-slate-700 px-3 py-1 rounded-full">🌍 ${p.region}</span>
+            <span class="bg-slate-700 px-3 py-1 rounded-full">🎤 ${p.mic}</span>
+          </div>
+          ${p.note ? `<div class="text-sm text-gray-400 mb-4 italic">"${p.note}"</div>` : ''}
+          <a href="${p.discord.startsWith('http') ? p.discord : '#'}" 
+             ${p.discord.startsWith('http') ? 'target="_blank" rel="noopener noreferrer"' : `onclick="window.showDiscordTag('${p.discord}'); return false;"`}
+             class="block text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-all">
+             ${p.discord.startsWith('http') ? '💬 JOIN DISCORD' : '💬 ' + p.discord}
+          </a>
+          ${p.discord.startsWith('http') ? `
+          <button onclick="window.copyDiscord('${p.discord.replace(/'/g, "\\'")}', event)" 
+                  class="mt-2 w-full text-sm text-gray-400 hover:text-white transition-colors">
+            📋 Copy invite
+          </button>
+          ` : ''}
+        </div>
+      `).join("");
+  }
+
+  // ===== NOW INITIALIZE FIREBASE =====
 
   // Initialize Firebase
   try {
@@ -390,52 +536,6 @@
         </button>
       </div>
     `;
-  }
-
-  function showToast(message, type = 'success') {
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-    
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.style.background = type === 'error' ? '#ef4444' : '#10b981';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-  }
-
-  function sanitize(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function validateDiscord(input) {
-    const discordLinkPattern = /discord\.(gg|com\/invite)\//i;
-    const discordTagPattern = /^.{2,32}#\d{4}$|^@?[a-z0-9_.]{2,32}$/i;
-    return discordLinkPattern.test(input) || discordTagPattern.test(input);
-  }
-
-  function canPost() {
-    const lastPost = localStorage.getItem(RATE_LIMIT_KEY);
-    if (lastPost) {
-      const timeSince = Date.now() - parseInt(lastPost);
-      if (timeSince < RATE_LIMIT_MS) {
-        const remaining = Math.ceil((RATE_LIMIT_MS - timeSince) / 1000);
-        showToast(`Please wait ${remaining}s before posting again`, 'error');
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function timeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
   }
 
   document.getElementById("lfgForm").onsubmit = async (e) => {
@@ -501,7 +601,7 @@
     }, { onlyOnce: true });
   }
 
-  function renderPosts(postsData) {
+  // ===== NOW INITIALIZE FIREBASE =====
     let posts = [];
     
     if (postsData) {
