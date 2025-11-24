@@ -161,35 +161,6 @@
     <span>Connecting to database...</span>
   </div>
 
-  <!-- Admin Toggle Button -->
-  <button class="admin-toggle" id="adminToggle" onclick="window.toggleAdminPanel()" title="Admin Panel">🔒</button>
-
-  <!-- Admin Panel -->
-  <div class="admin-panel" id="adminPanel" style="display: none;">
-    <h3 class="text-lg font-bold text-red-500 mb-3 flex items-center gap-2">
-      🛡️ Admin Panel
-    </h3>
-    <div class="space-y-2 text-sm">
-      <div class="flex items-center justify-between bg-slate-800 p-2 rounded">
-        <span>Total Posts:</span>
-        <span class="font-bold text-green-400" id="adminTotalPosts">0</span>
-      </div>
-      <div class="flex items-center justify-between bg-slate-800 p-2 rounded">
-        <span>Active Now:</span>
-        <span class="font-bold text-blue-400" id="adminActivePosts">0</span>
-      </div>
-      <button onclick="window.clearAllPosts()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded mt-3 transition-all">
-        🗑️ Clear All Posts
-      </button>
-      <button onclick="window.toggleAdminMode()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded transition-all">
-        ✏️ Toggle Delete Mode
-      </button>
-      <div class="text-xs text-gray-500 mt-2 pt-2 border-t border-slate-700">
-        Delete mode: <span id="adminModeStatus" class="font-bold text-red-400">OFF</span>
-      </div>
-    </div>
-  </div>
-
   <div class="max-w-4xl mx-auto">
     <h1 class="text-4xl md:text-5xl font-bold text-center mb-2 text-red-500">RedSec LFG</h1>
     <p class="text-center text-lg mb-8">Find a squad in seconds • No Discord required</p>
@@ -283,13 +254,76 @@
   let db, postsRef;
   const RATE_LIMIT_KEY = 'redsec_last_post';
   const RATE_LIMIT_MS = 30000;
-  const ADMIN_PASSWORD = 'redsec2025'; // Change this to your secure password
-  let isAdminMode = false;
-  let isAdminAuthenticated = false;
-  let allPostsData = null;
 
-  // ===== DEFINE ALL FUNCTIONS FIRST =====
-  
+  // Update database status indicator
+  function updateDBStatus(status, message) {
+    const statusEl = document.getElementById('dbStatus');
+    statusEl.className = `db-status ${status}`;
+    
+    const icon = status === 'connected' ? '✓' : status === 'error' ? '✗' : '⟳';
+    const pulseClass = status === 'connecting' ? 'pulse-dot inline-block w-2 h-2 bg-white rounded-full' : 'inline-block w-2 h-2 bg-white rounded-full';
+    
+    statusEl.innerHTML = `
+      <span class="${pulseClass}">${status === 'connected' || status === 'error' ? '' : ''}</span>
+      <span>${icon} ${message}</span>
+    `;
+
+    // Auto-hide success message after 3 seconds
+    if (status === 'connected') {
+      setTimeout(() => {
+        statusEl.style.opacity = '0.7';
+        statusEl.style.transform = 'scale(0.9)';
+      }, 3000);
+    }
+  }
+
+  // Initialize Firebase
+  try {
+    updateDBStatus('connecting', 'Connecting to database...');
+    
+    const app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+    postsRef = ref(db, 'lfg-posts');
+    
+    console.log("✅ Firebase initialized");
+    
+    // Listen for real-time updates
+    onValue(postsRef, (snapshot) => {
+      updateDBStatus('connected', 'Connected • Live updates enabled');
+      renderPosts(snapshot.val());
+    }, (error) => {
+      console.error("Database read failed:", error);
+      updateDBStatus('error', 'Connection failed');
+      showToast("Failed to load posts. Check Firebase setup.", "error");
+      document.getElementById("count").innerHTML = 
+        `<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span> Database error - check console`;
+    });
+    
+    // Clean expired posts every minute
+    setInterval(cleanExpiredPosts, 60000);
+    
+  } catch (err) {
+    console.error("Firebase init failed:", err);
+    updateDBStatus('error', 'Connection failed');
+    showToast("Failed to connect to Firebase", "error");
+    document.getElementById("listings").innerHTML = `
+      <div class="col-span-full bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
+        <div class="text-6xl mb-4">⚠️</div>
+        <h3 class="text-2xl font-bold mb-2">Database Connection Failed</h3>
+        <p class="text-gray-400 mb-4">Make sure you've created a Realtime Database in Firebase Console:</p>
+        <ol class="text-left inline-block text-gray-400 mb-4 space-y-2">
+          <li>1. Go to Firebase Console → Realtime Database</li>
+          <li>2. Click "Create Database"</li>
+          <li>3. Choose a location (us-central1 recommended)</li>
+          <li>4. Start in "Test mode" for now</li>
+        </ol>
+        <button onclick="location.reload()" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold">
+          🔄 Retry Connection
+        </button>
+      </div>
+    `;
+  }
+
   function showToast(message, type = 'success') {
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
@@ -334,257 +368,6 @@
     if (minutes < 60) return `${minutes}m ago`;
     const hours = Math.floor(minutes / 60);
     return `${hours}h ago`;
-  }
-
-  // Update database status indicator
-  function updateDBStatus(status, message) {
-    const statusEl = document.getElementById('dbStatus');
-    statusEl.className = `db-status ${status}`;
-    
-    const icon = status === 'connected' ? '✓' : status === 'error' ? '✗' : '⟳';
-    const pulseClass = status === 'connecting' ? 'pulse-dot inline-block w-2 h-2 bg-white rounded-full' : 'inline-block w-2 h-2 bg-white rounded-full';
-    
-    statusEl.innerHTML = `
-      <span class="${pulseClass}">${status === 'connected' || status === 'error' ? '' : ''}</span>
-      <span>${icon} ${message}</span>
-    `;
-
-    // Auto-hide success message after 3 seconds
-    if (status === 'connected') {
-      setTimeout(() => {
-        statusEl.style.opacity = '0.7';
-        statusEl.style.transform = 'scale(0.9)';
-      }, 3000);
-    }
-  }
-
-  // Admin Panel Functions
-  function updateAdminStats(postsData) {
-    const totalEl = document.getElementById('adminTotalPosts');
-    const activeEl = document.getElementById('adminActivePosts');
-    
-    console.log('Updating admin stats:', postsData);
-    
-    if (!totalEl || !activeEl) {
-      console.error('Admin stat elements not found');
-      return;
-    }
-    
-    if (!postsData) {
-      totalEl.textContent = '0';
-      activeEl.textContent = '0';
-      console.log('No posts data');
-      return;
-    }
-
-    const allPosts = Object.entries(postsData).map(([key, post]) => ({ ...post, id: key }));
-    const activePosts = allPosts.filter(p => p && p.expires && p.expires > Date.now());
-    
-    console.log('Total posts:', allPosts.length, 'Active posts:', activePosts.length);
-    
-    totalEl.textContent = allPosts.length;
-    activeEl.textContent = activePosts.length;
-  }
-
-  // Admin authentication
-  function authenticateAdmin() {
-    const password = prompt('🔐 Enter admin password:');
-    if (password === ADMIN_PASSWORD) {
-      isAdminAuthenticated = true;
-      document.getElementById('adminToggle').textContent = '🔓';
-      document.getElementById('adminToggle').style.background = '#10b981';
-      showToast('✅ Admin access granted!');
-      return true;
-    } else if (password !== null) {
-      showToast('❌ Incorrect password', 'error');
-      return false;
-    }
-    return false;
-  }
-
-  // Expose admin panel toggle globally FIRST
-  window.toggleAdminPanel = function() {
-    if (!isAdminAuthenticated) {
-      if (!authenticateAdmin()) return;
-    }
-
-    const panel = document.getElementById('adminPanel');
-    const toggle = document.getElementById('adminToggle');
-    
-    if (panel.style.display === 'none') {
-      panel.style.display = 'block';
-      toggle.style.display = 'none';
-    } else {
-      panel.style.display = 'none';
-    }
-  };
-
-  function renderPosts(postsData) {
-    let posts = [];
-    
-    if (postsData) {
-      posts = Object.entries(postsData)
-        .map(([key, post]) => ({ ...post, id: key }))
-        .filter(p => p.expires > Date.now() && p.name && p.discord);
-    }
-
-    const search = document.getElementById("search").value.toLowerCase();
-    const filterPlatform = document.getElementById("filterPlatform").value;
-    const filterRegion = document.getElementById("filterRegion").value;
-
-    if (search) {
-      posts = posts.filter(p => 
-        p.name.toLowerCase().includes(search) ||
-        p.discord.toLowerCase().includes(search) ||
-        p.platform.toLowerCase().includes(search) ||
-        p.region.toLowerCase().includes(search) ||
-        (p.note && p.note.toLowerCase().includes(search))
-      );
-    }
-
-    if (filterPlatform) posts = posts.filter(p => p.platform === filterPlatform);
-    if (filterRegion) posts = posts.filter(p => p.region === filterRegion);
-
-    document.getElementById("count").innerHTML = 
-      `<span class="pulse-dot inline-block w-2 h-2 bg-green-500 rounded-full"></span> ${posts.length} players looking right now`;
-
-    const listingsEl = document.getElementById("listings");
-    
-    if (posts.length === 0) {
-      listingsEl.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">📭 No players found. Be the first to post!</div>';
-      return;
-    }
-
-    listingsEl.innerHTML = posts
-      .sort((a,b) => b.time - a.time)
-      .map(p => `
-        <div class="card bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700">
-          <div class="flex justify-between items-start mb-3">
-            <div class="font-bold text-xl text-red-400">${p.name}</div>
-            <div class="flex items-center gap-2">
-              <div class="time-badge text-gray-400">⏱️ ${timeAgo(p.time)}</div>
-              ${isAdminMode ? `<button onclick="window.deletePost('${p.id}', '${p.name.replace(/'/g, "\\'")}', event)" class="delete-btn">🗑️</button>` : ''}
-            </div>
-          </div>
-          <div class="text-sm my-3 flex flex-wrap gap-2">
-            <span class="bg-slate-700 px-3 py-1 rounded-full">🎮 ${p.platform}</span>
-            <span class="bg-slate-700 px-3 py-1 rounded-full">🌍 ${p.region}</span>
-            <span class="bg-slate-700 px-3 py-1 rounded-full">🎤 ${p.mic}</span>
-          </div>
-          ${p.note ? `<div class="text-sm text-gray-400 mb-4 italic">"${p.note}"</div>` : ''}
-          <a href="${p.discord.startsWith('http') ? p.discord : '#'}" 
-             ${p.discord.startsWith('http') ? 'target="_blank" rel="noopener noreferrer"' : `onclick="window.showDiscordTag('${p.discord}'); return false;"`}
-             class="block text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-all">
-             ${p.discord.startsWith('http') ? '💬 JOIN DISCORD' : '💬 ' + p.discord}
-          </a>
-          ${p.discord.startsWith('http') ? `
-          <button onclick="window.copyDiscord('${p.discord.replace(/'/g, "\\'")}', event)" 
-                  class="mt-2 w-full text-sm text-gray-400 hover:text-white transition-colors">
-            📋 Copy invite
-          </button>
-          ` : ''}
-        </div>
-      `).join("");
-  }
-
-  // ===== NOW INITIALIZE FIREBASE =====
-  
-  // Initialize Firebase
-  try {
-    updateDBStatus('connecting', 'Connecting to database...');
-    
-    const app = initializeApp(firebaseConfig);
-    db = getDatabase(app);
-    postsRef = ref(db, 'lfg-posts');
-    
-    console.log("✅ Firebase initialized");
-    
-    // Listen for real-time updates
-    onValue(postsRef, (snapshot) => {
-      updateDBStatus('connected', 'Connected • Live updates enabled');
-      allPostsData = snapshot.val();
-      updateAdminStats(allPostsData); // Update stats first
-      renderPosts(allPostsData);
-    }, (error) => {
-      console.error("Database read failed:", error);
-      updateDBStatus('error', 'Connection failed');
-      showToast("Failed to load posts. Check Firebase setup.", "error");
-      document.getElementById("count").innerHTML = 
-        `<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span> Database error - check console`;
-    });
-    
-    // Clean expired posts every minute
-    setInterval(cleanExpiredPosts, 60000);
-    
-  } catch (err) {
-    console.error("Firebase init failed:", err);
-    updateDBStatus('error', 'Connection failed');
-    showToast("Failed to connect to Firebase", "error");
-    document.getElementById("listings").innerHTML = `
-      <div class="col-span-full bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
-        <div class="text-6xl mb-4">⚠️</div>
-        <h3 class="text-2xl font-bold mb-2">Database Connection Failed</h3>
-        <p class="text-gray-400 mb-4">Make sure you've created a Realtime Database in Firebase Console:</p>
-        <ol class="text-left inline-block text-gray-400 mb-4 space-y-2">
-          <li>1. Go to Firebase Console → Realtime Database</li>
-          <li>2. Click "Create Database"</li>
-          <li>3. Choose a location (us-central1 recommended)</li>
-          <li>4. Start in "Test mode" for now</li>
-        </ol>
-        <button onclick="location.reload()" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold">
-          🔄 Retry Connection
-        </button>
-      </div>
-    `;
-  }
-
-  // Initialize Firebase
-  try {
-    updateDBStatus('connecting', 'Connecting to database...');
-    
-    const app = initializeApp(firebaseConfig);
-    db = getDatabase(app);
-    postsRef = ref(db, 'lfg-posts');
-    
-    console.log("✅ Firebase initialized");
-    
-    // Listen for real-time updates
-    onValue(postsRef, (snapshot) => {
-      updateDBStatus('connected', 'Connected • Live updates enabled');
-      allPostsData = snapshot.val();
-      updateAdminStats(allPostsData); // Update stats first
-      renderPosts(allPostsData);
-    }, (error) => {
-      console.error("Database read failed:", error);
-      updateDBStatus('error', 'Connection failed');
-      showToast("Failed to load posts. Check Firebase setup.", "error");
-      document.getElementById("count").innerHTML = 
-        `<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span> Database error - check console`;
-    });
-    
-    // Clean expired posts every minute
-    setInterval(cleanExpiredPosts, 60000);
-    
-  } catch (err) {
-    console.error("Firebase init failed:", err);
-    updateDBStatus('error', 'Connection failed');
-    showToast("Failed to connect to Firebase", "error");
-    document.getElementById("listings").innerHTML = `
-      <div class="col-span-full bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
-        <div class="text-6xl mb-4">⚠️</div>
-        <h3 class="text-2xl font-bold mb-2">Database Connection Failed</h3>
-        <p class="text-gray-400 mb-4">Make sure you've created a Realtime Database in Firebase Console:</p>
-        <ol class="text-left inline-block text-gray-400 mb-4 space-y-2">
-          <li>1. Go to Firebase Console → Realtime Database</li>
-          <li>2. Click "Create Database"</li>
-          <li>3. Choose a location (us-central1 recommended)</li>
-          <li>4. Start in "Test mode" for now</li>
-        </ol>
-        <button onclick="location.reload()" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold">
-          🔄 Retry Connection
-        </button>
-      </div>
-    `;
   }
 
   document.getElementById("lfgForm").onsubmit = async (e) => {
@@ -650,7 +433,7 @@
     }, { onlyOnce: true });
   }
 
-  // ===== NOW INITIALIZE FIREBASE =====
+  function renderPosts(postsData) {
     let posts = [];
     
     if (postsData) {
@@ -692,10 +475,7 @@
         <div class="card bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700">
           <div class="flex justify-between items-start mb-3">
             <div class="font-bold text-xl text-red-400">${p.name}</div>
-            <div class="flex items-center gap-2">
-              <div class="time-badge text-gray-400">⏱️ ${timeAgo(p.time)}</div>
-              ${isAdminMode ? `<button onclick="window.deletePost('${p.id}', '${p.name.replace(/'/g, "\\'")}', event)" class="delete-btn">🗑️</button>` : ''}
-            </div>
+            <div class="time-badge text-gray-400">⏱️ ${timeAgo(p.time)}</div>
           </div>
           <div class="text-sm my-3 flex flex-wrap gap-2">
             <span class="bg-slate-700 px-3 py-1 rounded-full">🎮 ${p.platform}</span>
@@ -719,15 +499,15 @@
   }
 
   document.getElementById("search").addEventListener('input', () => {
-    if (db) renderPosts(allPostsData);
+    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
   });
   
   document.getElementById("filterPlatform").addEventListener('change', () => {
-    if (db) renderPosts(allPostsData);
+    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
   });
   
   document.getElementById("filterRegion").addEventListener('change', () => {
-    if (db) renderPosts(allPostsData);
+    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
   });
 
   // Expose functions globally for inline handlers
