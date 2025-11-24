@@ -488,6 +488,55 @@
   }
 
   // ===== NOW INITIALIZE FIREBASE =====
+  
+  // Initialize Firebase
+  try {
+    updateDBStatus('connecting', 'Connecting to database...');
+    
+    const app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+    postsRef = ref(db, 'lfg-posts');
+    
+    console.log("✅ Firebase initialized");
+    
+    // Listen for real-time updates
+    onValue(postsRef, (snapshot) => {
+      updateDBStatus('connected', 'Connected • Live updates enabled');
+      allPostsData = snapshot.val();
+      updateAdminStats(allPostsData); // Update stats first
+      renderPosts(allPostsData);
+    }, (error) => {
+      console.error("Database read failed:", error);
+      updateDBStatus('error', 'Connection failed');
+      showToast("Failed to load posts. Check Firebase setup.", "error");
+      document.getElementById("count").innerHTML = 
+        `<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span> Database error - check console`;
+    });
+    
+    // Clean expired posts every minute
+    setInterval(cleanExpiredPosts, 60000);
+    
+  } catch (err) {
+    console.error("Firebase init failed:", err);
+    updateDBStatus('error', 'Connection failed');
+    showToast("Failed to connect to Firebase", "error");
+    document.getElementById("listings").innerHTML = `
+      <div class="col-span-full bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
+        <div class="text-6xl mb-4">⚠️</div>
+        <h3 class="text-2xl font-bold mb-2">Database Connection Failed</h3>
+        <p class="text-gray-400 mb-4">Make sure you've created a Realtime Database in Firebase Console:</p>
+        <ol class="text-left inline-block text-gray-400 mb-4 space-y-2">
+          <li>1. Go to Firebase Console → Realtime Database</li>
+          <li>2. Click "Create Database"</li>
+          <li>3. Choose a location (us-central1 recommended)</li>
+          <li>4. Start in "Test mode" for now</li>
+        </ol>
+        <button onclick="location.reload()" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold">
+          🔄 Retry Connection
+        </button>
+      </div>
+    `;
+  }
 
   // Initialize Firebase
   try {
