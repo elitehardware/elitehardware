@@ -357,8 +357,8 @@
     onValue(postsRef, (snapshot) => {
       updateDBStatus('connected', 'Connected • Live updates enabled');
       allPostsData = snapshot.val();
+      updateAdminStats(allPostsData); // Update stats first
       renderPosts(allPostsData);
-      updateAdminStats(allPostsData);
     }, (error) => {
       console.error("Database read failed:", error);
       updateDBStatus('error', 'Connection failed');
