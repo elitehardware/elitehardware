@@ -48,13 +48,6 @@
       font-size: 0.75rem;
       opacity: 0.8;
     }
-    .setup-banner {
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 24px;
-      box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
-    }
   </style>
 </head>
 <body class="min-h-screen py-8 px-4">
@@ -62,171 +55,136 @@
     <h1 class="text-4xl md:text-5xl font-bold text-center mb-2 text-red-500">RedSec LFG</h1>
     <p class="text-center text-lg mb-8">Find a squad in seconds • No Discord required</p>
 
-    <!-- Setup Instructions Banner -->
-    <div class="setup-banner" id="setupBanner">
-      <h2 class="text-2xl font-bold mb-3">🔧 Quick Setup Required</h2>
-      <p class="mb-4">To enable real-time cross-user sharing, follow these 3 simple steps:</p>
-      <ol class="list-decimal list-inside space-y-2 mb-4 bg-black/20 p-4 rounded-lg">
-        <li><strong>Go to <a href="https://console.firebase.google.com/" target="_blank" class="underline">Firebase Console</a></strong> (free, no credit card needed)</li>
-        <li><strong>Create a new project</strong> → Enable "Realtime Database" → Start in test mode</li>
-        <li><strong>Copy your config</strong> from Project Settings → General → Web App, then paste below:</li>
-      </ol>
-      
-      <div class="bg-slate-900 rounded-lg p-4 mb-4">
-        <label class="block text-sm font-bold mb-2">Paste Firebase Config JSON:</label>
-        <textarea 
-          id="firebaseConfig" 
-          class="w-full bg-slate-800 text-white p-3 rounded font-mono text-xs h-32 focus:ring-2 focus:ring-red-500 outline-none"
-          placeholder='{
-  "apiKey": "AIza...",
-  "authDomain": "...",
-  "databaseURL": "https://...",
-  "projectId": "...",
-  "storageBucket": "...",
-  "messagingSenderId": "...",
-  "appId": "..."
-}'></textarea>
-      </div>
-      
-      <button id="saveConfigBtn" class="w-full bg-white text-red-600 font-bold py-3 rounded-lg hover:bg-gray-100 transition-all">
-        ✅ Save Config & Start Using
-      </button>
-      
-      <p class="text-xs mt-3 text-white/70">💡 Config is saved locally in your browser. Set this up once per device.</p>
-    </div>
-
-    <!-- Main App (hidden until configured) -->
-    <div id="mainApp" style="display: none;">
-      <!-- Post Form -->
-      <div class="bg-slate-800 rounded-xl p-6 mb-10 shadow-xl">
-        <h2 class="text-2xl font-bold mb-4">Post LFG</h2>
-        <form id="lfgForm" class="grid md:grid-cols-3 gap-4">
-          <input 
-            required 
-            placeholder="Username / Gamertag" 
-            class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
-            id="name"
-            maxlength="30"
-            autocomplete="off"
-          />
-          <input 
-            required 
-            placeholder="Discord link or tag" 
-            class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
-            id="discord"
-            autocomplete="off"
-          />
-          <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="platform">
-            <option value="" disabled selected>Platform</option>
-            <option>PC</option><option>PlayStation</option><option>Xbox</option><option>Mobile</option><option>Cross-Platform</option>
-          </select>
-          <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="region">
-            <option value="" disabled selected>Region</option>
-            <option>NA East</option><option>NA West</option><option>EU</option><option>Asia</option><option>OCE</option><option>SA</option>
-          </select>
-          <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="mic">
-            <option value="" disabled selected>Mic?</option>
-            <option>Yes</option><option>No</option><option>Optional</option>
-          </select>
-          <input 
-            placeholder="Note (optional)" 
-            class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
-            id="note"
-            maxlength="50"
-            autocomplete="off"
-          />
-          <button type="submit" id="submitBtn" class="md:col-span-3 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-lg text-xl transition-all">
-            🚀 POST LFG (expires in 2 hours)
-          </button>
-        </form>
-      </div>
-
-      <!-- Filters -->
-      <div class="flex flex-wrap gap-3 mb-8 justify-center">
-        <input id="search" placeholder="🔍 Search anything…" class="px-4 py-2 bg-slate-800 rounded-lg flex-1 min-w-[200px] focus:ring-2 focus:ring-red-500 outline-none"/>
-        <select id="filterPlatform" class="px-4 py-2 bg-slate-800 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
-          <option value="">All Platforms</option>
+    <!-- Post Form -->
+    <div class="bg-slate-800 rounded-xl p-6 mb-10 shadow-xl">
+      <h2 class="text-2xl font-bold mb-4">Post LFG</h2>
+      <form id="lfgForm" class="grid md:grid-cols-3 gap-4">
+        <input 
+          required 
+          placeholder="Username / Gamertag" 
+          class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
+          id="name"
+          maxlength="30"
+          autocomplete="off"
+        />
+        <input 
+          required 
+          placeholder="Discord link or tag" 
+          class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
+          id="discord"
+          autocomplete="off"
+        />
+        <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="platform">
+          <option value="" disabled selected>Platform</option>
           <option>PC</option><option>PlayStation</option><option>Xbox</option><option>Mobile</option><option>Cross-Platform</option>
         </select>
-        <select id="filterRegion" class="px-4 py-2 bg-slate-800 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
-          <option value="">All Regions</option>
+        <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="region">
+          <option value="" disabled selected>Region</option>
           <option>NA East</option><option>NA West</option><option>EU</option><option>Asia</option><option>OCE</option><option>SA</option>
         </select>
-        <button onclick="location.reload()" class="px-6 py-2 bg-slate-700 rounded-lg hover:bg-slate-600 transition-all">Clear</button>
-      </div>
-
-      <!-- Live Listings -->
-      <div id="listings" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="skeleton rounded-xl h-64"></div>
-        <div class="skeleton rounded-xl h-64"></div>
-        <div class="skeleton rounded-xl h-64"></div>
-      </div>
-      <p class="text-center mt-10 text-gray-500 flex items-center justify-center gap-2" id="count">
-        <span class="pulse-dot inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-        0 players looking right now
-      </p>
+        <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="mic">
+          <option value="" disabled selected>Mic?</option>
+          <option>Yes</option><option>No</option><option>Optional</option>
+        </select>
+        <input 
+          placeholder="Note (optional)" 
+          class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
+          id="note"
+          maxlength="50"
+          autocomplete="off"
+        />
+        <button type="submit" id="submitBtn" class="md:col-span-3 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-lg text-xl transition-all">
+          🚀 POST LFG (expires in 2 hours)
+        </button>
+      </form>
     </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3 mb-8 justify-center">
+      <input id="search" placeholder="🔍 Search anything…" class="px-4 py-2 bg-slate-800 rounded-lg flex-1 min-w-[200px] focus:ring-2 focus:ring-red-500 outline-none"/>
+      <select id="filterPlatform" class="px-4 py-2 bg-slate-800 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
+        <option value="">All Platforms</option>
+        <option>PC</option><option>PlayStation</option><option>Xbox</option><option>Mobile</option><option>Cross-Platform</option>
+      </select>
+      <select id="filterRegion" class="px-4 py-2 bg-slate-800 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
+        <option value="">All Regions</option>
+        <option>NA East</option><option>NA West</option><option>EU</option><option>Asia</option><option>OCE</option><option>SA</option>
+      </select>
+      <button onclick="location.reload()" class="px-6 py-2 bg-slate-700 rounded-lg hover:bg-slate-600 transition-all">Clear</button>
+    </div>
+
+    <!-- Live Listings -->
+    <div id="listings" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="skeleton rounded-xl h-64"></div>
+      <div class="skeleton rounded-xl h-64"></div>
+      <div class="skeleton rounded-xl h-64"></div>
+    </div>
+    <p class="text-center mt-10 text-gray-500 flex items-center justify-center gap-2" id="count">
+      <span class="pulse-dot inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+      Connecting to database...
+    </p>
   </div>
 
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-  import { getDatabase, ref, push, onValue, remove, query, orderByChild } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+  import { getDatabase, ref, push, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+  // Your Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDRi-OXdRhqhmuBKlEtYgDMqwqab2mZf-c",
+    authDomain: "redsec-lfg.firebaseapp.com",
+    databaseURL: "https://redsec-lfg-default-rtdb.firebaseio.com", // Added the database URL
+    projectId: "redsec-lfg",
+    storageBucket: "redsec-lfg.firebasestorage.app",
+    messagingSenderId: "969373318708",
+    appId: "1:969373318708:web:c5a61792dc27d30a441461",
+    measurementId: "G-HXNKL7195D"
+  };
 
   let db, postsRef;
   const RATE_LIMIT_KEY = 'redsec_last_post';
   const RATE_LIMIT_MS = 30000;
-  const CONFIG_KEY = 'firebase_config';
 
-  // Check if already configured
-  const savedConfig = localStorage.getItem(CONFIG_KEY);
-  if (savedConfig) {
-    try {
-      const config = JSON.parse(savedConfig);
-      initFirebase(config);
-    } catch (err) {
-      console.error("Invalid saved config:", err);
-    }
-  }
-
-  // Attach save button event listener
-  document.getElementById('saveConfigBtn').addEventListener('click', function() {
-    const configText = document.getElementById('firebaseConfig').value.trim();
-    try {
-      const config = JSON.parse(configText);
-      if (!config.apiKey || !config.databaseURL) {
-        showToast("Invalid config - missing required fields", "error");
-        return;
-      }
-      localStorage.setItem(CONFIG_KEY, configText);
-      initFirebase(config);
-      document.getElementById('setupBanner').style.display = 'none';
-      document.getElementById('mainApp').style.display = 'block';
-      showToast("✅ Firebase connected successfully!");
-    } catch (err) {
-      showToast("Invalid JSON format. Please check your config.", "error");
-    }
-  });
-
-  function initFirebase(config) {
-    try {
-      const app = initializeApp(config);
-      db = getDatabase(app);
-      postsRef = ref(db, 'lfg-posts');
-      
-      document.getElementById('setupBanner').style.display = 'none';
-      document.getElementById('mainApp').style.display = 'block';
-      
-      // Listen for real-time updates
-      onValue(postsRef, (snapshot) => {
-        renderPosts(snapshot.val());
-      });
-      
-      // Clean expired posts every minute
-      setInterval(cleanExpiredPosts, 60000);
-    } catch (err) {
-      console.error("Firebase init failed:", err);
-      showToast("Failed to connect to Firebase. Check your config.", "error");
-    }
+  // Initialize Firebase
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+    postsRef = ref(db, 'lfg-posts');
+    
+    console.log("✅ Firebase connected successfully!");
+    
+    // Listen for real-time updates
+    onValue(postsRef, (snapshot) => {
+      renderPosts(snapshot.val());
+    }, (error) => {
+      console.error("Database read failed:", error);
+      showToast("Failed to load posts. Check Firebase setup.", "error");
+      document.getElementById("count").innerHTML = 
+        `<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span> Database error - check console`;
+    });
+    
+    // Clean expired posts every minute
+    setInterval(cleanExpiredPosts, 60000);
+    
+  } catch (err) {
+    console.error("Firebase init failed:", err);
+    showToast("Failed to connect to Firebase", "error");
+    document.getElementById("listings").innerHTML = `
+      <div class="col-span-full bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
+        <div class="text-6xl mb-4">⚠️</div>
+        <h3 class="text-2xl font-bold mb-2">Database Connection Failed</h3>
+        <p class="text-gray-400 mb-4">Make sure you've created a Realtime Database in Firebase Console:</p>
+        <ol class="text-left inline-block text-gray-400 mb-4 space-y-2">
+          <li>1. Go to Firebase Console → Realtime Database</li>
+          <li>2. Click "Create Database"</li>
+          <li>3. Choose a location (us-central1 recommended)</li>
+          <li>4. Start in "Test mode" for now</li>
+        </ol>
+        <button onclick="location.reload()" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold">
+          🔄 Retry Connection
+        </button>
+      </div>
+    `;
   }
 
   function showToast(message, type = 'success') {
@@ -279,7 +237,7 @@
     e.preventDefault();
     
     if (!db) {
-      showToast("Please configure Firebase first", 'error');
+      showToast("Database not ready. Please refresh.", 'error');
       return;
     }
 
@@ -326,7 +284,7 @@
   async function cleanExpiredPosts() {
     if (!db) return;
     
-    const snapshot = await onValue(postsRef, (snap) => {
+    onValue(postsRef, (snap) => {
       const posts = snap.val();
       if (!posts) return;
       
@@ -393,6 +351,12 @@
              class="block text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-all">
              ${p.discord.startsWith('http') ? '💬 JOIN DISCORD' : '💬 ' + p.discord}
           </a>
+          ${p.discord.startsWith('http') ? `
+          <button onclick="window.copyDiscord('${p.discord.replace(/'/g, "\\'")}', event)" 
+                  class="mt-2 w-full text-sm text-gray-400 hover:text-white transition-colors">
+            📋 Copy invite
+          </button>
+          ` : ''}
         </div>
       `).join("");
   }
@@ -409,9 +373,18 @@
     if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
   });
 
-  // Expose showToast globally for inline handlers
+  // Expose functions globally for inline handlers
   window.showToast = showToast;
   window.showDiscordTag = (tag) => showToast(`Discord: ${tag}`);
+  window.copyDiscord = (text, event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("✅ Copied to clipboard!");
+    }).catch(() => {
+      showToast("Failed to copy", "error");
+    });
+  };
 </script>
 
 <footer class="text-center mt-20 text-gray-600 text-sm">
