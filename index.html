@@ -162,7 +162,7 @@
   </div>
 
   <!-- Admin Toggle Button -->
-  <button class="admin-toggle" id="adminToggle" title="Admin Panel">🔒</button>
+  <button class="admin-toggle" id="adminToggle" onclick="window.toggleAdminPanel()" title="Admin Panel">🔒</button>
 
   <!-- Admin Panel -->
   <div class="admin-panel" id="adminPanel" style="display: none;">
@@ -309,6 +309,39 @@
       }, 3000);
     }
   }
+
+  // Admin authentication
+  function authenticateAdmin() {
+    const password = prompt('🔐 Enter admin password:');
+    if (password === ADMIN_PASSWORD) {
+      isAdminAuthenticated = true;
+      document.getElementById('adminToggle').textContent = '🔓';
+      document.getElementById('adminToggle').style.background = '#10b981';
+      showToast('✅ Admin access granted!');
+      return true;
+    } else if (password !== null) {
+      showToast('❌ Incorrect password', 'error');
+      return false;
+    }
+    return false;
+  }
+
+  // Expose admin panel toggle globally FIRST
+  window.toggleAdminPanel = function() {
+    if (!isAdminAuthenticated) {
+      if (!authenticateAdmin()) return;
+    }
+
+    const panel = document.getElementById('adminPanel');
+    const toggle = document.getElementById('adminToggle');
+    
+    if (panel.style.display === 'none') {
+      panel.style.display = 'block';
+      toggle.style.display = 'none';
+    } else {
+      panel.style.display = 'none';
+    }
+  };
 
   // Initialize Firebase
   try {
