@@ -1,286 +1,99 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Real-time Monero (XMR) Predictor — Demo</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-  body{font-family:Inter,system-ui,Arial;margin:18px;background:#0b1220;color:#e6eef7}
-  .wrap{max-width:1100px;margin:0 auto}
-  header{display:flex;align-items:center;justify-content:space-between}
-  h1{font-size:20px;margin:0}
-  .muted{color:#94a3b8;font-size:13px}
-  .grid{display:grid;grid-template-columns:1fr 380px;gap:14px;margin-top:14px}
-  .card{background:#071127;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
-  .controls{display:flex;gap:8px;align-items:center;margin-top:8px}
-  button{background:#ffb020;border:none;padding:8px 12px;border-radius:8px;color:#071127;font-weight:700;cursor:pointer}
-  input[type=range]{width:180px}
-  .score{font-size:18px;font-weight:700}
-  .small{font-size:13px;color:#94a3b8}
-  .stat{margin-top:8px}
-  .spark{font-weight:700;color:#60a5fa}
-  a.link{color:#60a5fa}
-</style>
+  <meta charset="UTF-8">
+  <title>Monero (XMR) Real-Time Price Predictor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0d0d0d;
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+    #price {
+      font-size: 2.2em;
+      margin-top: 15px;
+    }
+    canvas {
+      max-width: 700px;
+      margin: auto;
+    }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div>
-      <h1>🚀 XMR Real-time Predictor (demo)</h1>
-      <div class="muted small">Uses CoinGecko public API for live price & historical market chart (no API key). This is a demo predictor — not financial advice.</div>
-    </div>
-    <div class="small muted">Polling interval: <span id="intervalLabel">30</span>s</div>
-  </header>
 
-  <div class="grid">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div class="muted small">Current XMR / USD</div>
-          <div id="price" style="font-size:28px;font-weight:700">–</div>
-          <div class="small muted" id="change24">...</div>
-        </div>
-        <div style="text-align:right">
-          <div class="muted small">Prediction (next interval)</div>
-          <div id="pred" style="font-size:20px;font-weight:700">–</div>
-          <div id="predSignal" class="small muted">–</div>
-        </div>
-      </div>
+  <h1>🪙 Monero (XMR) Live Price & Predictor</h1>
+  <p>Real data — No API key needed.</p>
 
-      <div class="stat small">
-        <label>Sensitivity</label>
-        <input id="sensitivity" type="range" min="0.4" max="2.0" step="0.1" value="1.0" />
-        <span id="sensVal" class="spark">1.0×</span>
-      </div>
+  <div id="price">Loading price...</div>
+  <canvas id="priceChart"></canvas>
 
-      <div class="controls">
-        <button id="start">Start</button>
-        <button id="stop" disabled>Stop</button>
-        <button id="oneShot">Refresh Now</button>
-        <label style="margin-left:8px" class="small">Interval (s)
-          <input id="interval" type="number" min="10" max="300" value="30" style="width:72px;margin-left:6px"/>
-        </label>
-      </div>
+  <!-- Chart Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-      <div style="margin-top:12px" class="small muted">Model: regression + EMA. Uses recent market chart (24h) to compute trend; extrapolates one step ahead. For better accuracy use server-side models and more data.</div>
-      <div style="margin-top:12px">
-        <canvas id="chart" height="160"></canvas>
-      </div>
-    </div>
+  <script>
+    const COIN_ID = 'monero';
+    const VS_CURRENCY = 'usd';
+    const corsProxy = 'https://cors.isomorphic-git.org/';
 
-    <div class="card">
-      <div>
-        <div class="muted small">Signals & stats</div>
-        <div class="stat"><span class="small muted">EMA(12):</span> <span id="ema12" class="spark">–</span></div>
-        <div class="stat"><span class="small muted">Slope (recent):</span> <span id="slope" class="spark">–</span></div>
-        <div class="stat"><span class="small muted">Model confidence:</span> <span id="conf" class="spark">–</span></div>
-        <div class="stat"><span class="small muted">Last updated:</span> <span id="updated" class="small muted">–</span></div>
-      </div>
+    const gecko = {
+      simplePrice: () => `https://api.coingecko.com/api/v3/simple/price?ids=${COIN_ID}&vs_currencies=${VS_CURRENCY}`,
+      marketChart: () => `https://api.coingecko.com/api/v3/coins/${COIN_ID}/market_chart?vs_currency=${VS_CURRENCY}&days=1`
+    };
 
-      <div style="margin-top:12px">
-        <div class="muted small">About data</div>
-        <div class="small muted">Price & historical chart fetched from CoinGecko endpoints: <span class="muted"><a class="link" href="https://www.coingecko.com/en/api" target="_blank">CoinGecko API</a></span>. Public plan has rate limits — avoid polling faster than a few times per minute for demos. :contentReference[oaicite:2]{index=2}</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-/* =========================
-   Config & endpoints
-   ========================= */
-const COINGECKO = {
-  simplePrice: (id, vs) => `https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=${vs}&include_24hr_change=true`,
-  marketChart: (id, vs, days) => `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=${vs}&days=${days}&interval=hourly`
-};
-
-const COIN_ID = 'monero';
-const VS = 'usd';
-let polling = null;
-
-/* UI refs */
-const priceEl = document.getElementById('price');
-const change24El = document.getElementById('change24');
-const predEl = document.getElementById('pred');
-const predSignalEl = document.getElementById('predSignal');
-const startBtn = document.getElementById('start');
-const stopBtn = document.getElementById('stop');
-const oneShotBtn = document.getElementById('oneShot');
-const sensitivityEl = document.getElementById('sensitivity');
-const sensVal = document.getElementById('sensVal');
-const intervalInput = document.getElementById('interval');
-const intervalLabel = document.getElementById('intervalLabel');
-const ema12El = document.getElementById('ema12');
-const slopeEl = document.getElementById('slope');
-const confEl = document.getElementById('conf');
-const updatedEl = document.getElementById('updated');
-
-/* Chart setup */
-const ctx = document.getElementById('chart').getContext('2d');
-const chart = new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      {label:'Price', data:[], borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.08)', tension:0.2},
-      {label:'Prediction', data:[], borderColor:'#fb7185', borderDash:[6,4], backgroundColor:'rgba(251,113,133,0.02)', tension:0.2}
-    ]
-  },
-  options: {responsive:true, scales:{x:{display:true}, y:{display:true}}}
-});
-
-/* utility: fetch JSON text with timeout */
-async function fetchJson(url, timeout=10000){
-  const controller = new AbortController();
-  const id = setTimeout(()=> controller.abort(), timeout);
-  const res = await fetch(url, {signal: controller.signal});
-  clearTimeout(id);
-  if(!res.ok) throw new Error(res.status + ' ' + res.statusText);
-  return res.json();
-}
-
-/* simple EMA */
-function ema(values, period){
-  if(!values.length) return null;
-  const k = 2/(period+1);
-  let emaVal = values[0];
-  for(let i=1;i<values.length;i++){
-    emaVal = values[i]*k + emaVal*(1-k);
-  }
-  return emaVal;
-}
-
-/* linear regression slope & intercept */
-function linearRegression(xs, ys){
-  const n = xs.length;
-  if(n===0) return null;
-  let sumX=0,sumY=0,sumXY=0,sumXX=0;
-  for(let i=0;i<n;i++){
-    sumX += xs[i]; sumY += ys[i];
-    sumXY += xs[i]*ys[i]; sumXX += xs[i]*xs[i];
-  }
-  const slope = (n*sumXY - sumX*sumY) / (n*sumXX - sumX*sumX);
-  const intercept = (sumY - slope*sumX)/n;
-  return {slope, intercept};
-}
-
-/* normalize timestamps to index array */
-function prepareSeries(prices){
-  // prices: [[unix_ms, price], ...] from CoinGecko
-  const xs=[], ys=[], labels=[];
-  for(let i=0;i<prices.length;i++){
-    xs.push(i);
-    ys.push(prices[i][1]);
-    const d = new Date(prices[i][0]);
-    labels.push(d.toLocaleTimeString());
-  }
-  return {xs, ys, labels};
-}
-
-/* main single refresh: fetch current price + recent market chart, update UI & model */
-async function refreshOnce(){
-  try{
-    const sensitivity = parseFloat(sensitivityEl.value);
-    const intervalSec = Math.max(10, Number(intervalInput.value||30));
-    intervalLabel.textContent = intervalSec;
-
-    // 1) fetch simple current price (includes 24h change)
-    const priceUrl = COINGECKO.simplePrice(COIN_ID, VS);
-    const priceData = await fetchJson(priceUrl);
-    const cur = priceData[COIN_ID][VS];
-    const change24 = priceData[COIN_ID][`${VS}_24h_change`];
-
-    priceEl.textContent = `$${cur.toLocaleString(undefined, {maximumFractionDigits:2})}`;
-    change24El.textContent = `24h: ${change24 ? change24.toFixed(2) : '0.00'}%`;
-
-    // 2) fetch recent market chart (24h)
-    const chartUrl = COINGECKO.marketChart(COIN_ID, VS, 1); // 1 day
-    const chartData = await fetchJson(chartUrl);
-    const prices = chartData.prices; // array of [timestamp, price]
-
-    // use last N points (e.g., last 24 points ~ hourly if interval=1day hourly)
-    const N = Math.min(36, prices.length);
-    const recent = prices.slice(-N);
-
-    // prepare series
-    const {xs, ys, labels} = prepareSeries(recent);
-
-    // compute EMA and slope
-    const ema12 = ema(ys, Math.min(12, ys.length));
-    const reg = linearRegression(xs, ys);
-    const slope = reg ? reg.slope : 0;
-
-    // forecast: extrapolate one index ahead: y_next = intercept + slope*(n)
-    const nextX = xs[xs.length-1] + 1;
-    const yNext = reg ? (reg.intercept + reg.slope * nextX) : ys[ys.length-1];
-    const yPred = yNext * (1 + (0.000 * (sensitivity-1))); // small sensitivity adjust (placeholder)
-
-    // model confidence: higher with more points and low residuals
-    let residual=0;
-    if(reg){
-      for(let i=0;i<xs.length;i++){
-        const yHat = reg.intercept + reg.slope*xs[i];
-        residual += Math.abs(yHat - ys[i]);
+    // 🎯 Fetch and display live price
+    async function updatePrice() {
+      try {
+        const res = await fetch(corsProxy + gecko.simplePrice());
+        const data = await res.json();
+        const price = data[COIN_ID][VS_CURRENCY];
+        document.getElementById("price").textContent = `Current Price: $${price}`;
+      } catch (err) {
+        document.getElementById("price").textContent = "⚠ Error fetching price.";
+        console.error(err);
       }
     }
-    const avgResidual = reg ? residual / xs.length : 0;
-    const confidence = Math.max(0.2, 1 - Math.min(0.9, avgResidual / (Math.abs(ys[ys.length-1]) || 1)));
 
-    // Update chart: actual series and one-step prediction appended visually
-    chart.data.labels = labels.concat(['next']);
-    chart.data.datasets[0].data = ys.concat([null]); // actual ends
-    chart.data.datasets[1].data = Array(ys.length).fill(null).concat([yPred]); // prediction only at last point
-    chart.update();
+    // 📈 Fetch last 24hr data + simple trend prediction
+    async function loadChart() {
+      try {
+        const res = await fetch(corsProxy + gecko.marketChart());
+        const data = await res.json();
 
-    // display prediction and signals
-    const pct = ((yPred - cur)/cur)*100;
-    predEl.textContent = `$${yPred.toLocaleString(undefined,{maximumFractionDigits:2})} (${pct>=0?'+':''}${pct.toFixed(2)}%)`;
-    predSignalEl.textContent = (pct>0.2 ? 'Bullish signal' : (pct<-0.2 ? 'Bearish signal' : 'Neutral'));
+        const prices = data.prices.map(p => ({ time: new Date(p[0]).toLocaleTimeString(), value: p[1] }));
+        const labels = prices.map(p => p.time);
+        const values = prices.map(p => p.value);
 
-    ema12El.textContent = ema12 ? `$${ema12.toFixed(2)}` : '–';
-    slopeEl.textContent = slope ? slope.toFixed(6) : '–';
-    confEl.textContent = (confidence*100).toFixed(0) + '%';
-    updatedEl.textContent = new Date().toLocaleString();
+        const trend = values[values.length - 1] > values[0]
+          ? "🔼 Likely Uptrend"
+          : "🔻 Possible Downtrend";
 
-    // store small history in localStorage (optional)
-    const hist = JSON.parse(localStorage.getItem('xmr_hist')||'[]');
-    hist.push({t: new Date().toISOString(), price: cur, pred: yPred, conf: confidence});
-    if(hist.length>200) hist.shift();
-    localStorage.setItem('xmr_hist', JSON.stringify(hist));
+        new Chart(document.getElementById("priceChart"), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Price ($)',
+              data: values,
+              borderWidth: 2
+            }]
+          },
+          options: { responsive: true }
+        });
 
-    // return for potential logging
-    return {cur, change24, yPred, pct, confidence};
-  }catch(err){
-    console.error('refresh error', err);
-    priceEl.textContent = 'error';
-    predEl.textContent = 'error';
-    return null;
-  }
-}
+        document.getElementById("price").textContent += ` | Prediction: ${trend}`;
+      } catch (err) {
+        console.error("Error loading chart", err);
+      }
+    }
 
-/* controls */
-startBtn.addEventListener('click', ()=>{
-  const intervalSec = Math.max(10, Number(intervalInput.value||30));
-  if(polling) clearInterval(polling);
-  refreshOnce();
-  polling = setInterval(refreshOnce, intervalSec*1000);
-  startBtn.disabled = true; stopBtn.disabled = false;
-});
-stopBtn.addEventListener('click', ()=>{
-  if(polling) clearInterval(polling);
-  polling = null;
-  startBtn.disabled = false; stopBtn.disabled = true;
-});
-oneShotBtn.addEventListener('click', ()=> refreshOnce());
-sensitivityEl.addEventListener('input', ()=> sensVal.textContent = sensitivityEl.value + '×');
+    // 🔄 Auto refresh
+    updatePrice();
+    loadChart();
+    setInterval(updatePrice, 15000); // 15 sec refresh
+    setInterval(loadChart, 60000);   // Chart refresh every minute
+  </script>
 
-/* initialize quickly */
-(async ()=> {
-  await refreshOnce();
-  chart.update();
-})();
-</script>
 </body>
 </html>
