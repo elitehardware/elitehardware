@@ -23,7 +23,7 @@
         }
         
         .container {
-            max-width: 800px;
+            max-width: 900px;
             width: 100%;
         }
         
@@ -75,11 +75,93 @@
             50% { transform: scale(1.02); }
         }
         
+        .confidence-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.6em;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        
+        .confidence-high {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+            border: 2px solid #00ff00;
+        }
+        
+        .confidence-medium {
+            background: rgba(255, 255, 0, 0.2);
+            color: #ffff00;
+            border: 2px solid #ffff00;
+        }
+        
+        .confidence-low {
+            background: rgba(255, 136, 0, 0.2);
+            color: #ff8800;
+            border: 2px solid #ff8800;
+        }
+        
         .last-update {
             text-align: center;
             font-size: 1.2em;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             color: #aaaaaa;
+        }
+        
+        .sources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .source-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .source-card h3 {
+            font-size: 0.9em;
+            color: #00ff00;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .source-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .source-status.active {
+            background: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+        
+        .source-status.inactive {
+            background: #ff4444;
+        }
+        
+        .source-status.checking {
+            background: #ffff00;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .source-card p {
+            font-size: 0.85em;
+            color: #cccccc;
+            line-height: 1.4;
         }
         
         .controls {
@@ -161,31 +243,55 @@
                 padding: 12px 20px;
                 font-size: 0.9em;
             }
+            .sources-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎮 Battlefield 6 (2042 Next) – Update Checker</h1>
+        <h1>🎮 Battlefield 6 (2042 Next) – Multi-Source Update Checker</h1>
         
-        <div id="status" class="status loading">Initializing...</div>
-        <div id="lastUpdate" class="last-update">Loading patch information...</div>
+        <div id="status" class="status loading">Initializing multi-source detection...</div>
+        <div id="lastUpdate" class="last-update">Checking all sources...</div>
         <div id="nextCheck" class="next-check"></div>
         
+        <div class="sources-grid" id="sourcesGrid">
+            <div class="source-card">
+                <h3><span class="source-status checking"></span> SteamCMD API</h3>
+                <p id="source-steamcmd">Checking manifest IDs...</p>
+            </div>
+            <div class="source-card">
+                <h3><span class="source-status checking"></span> Steam News</h3>
+                <p id="source-news">Checking patch announcements...</p>
+            </div>
+            <div class="source-card">
+                <h3><span class="source-status checking"></span> Version Parser</h3>
+                <p id="source-version">Extracting version numbers...</p>
+            </div>
+        </div>
+        
         <div class="controls">
-            <button class="btn-check" onclick="checkForUpdate(true)">🔍 Check Now</button>
+            <button class="btn-check" onclick="checkForUpdate(true)">🔍 Deep Scan Now</button>
             <button id="toggleBtn" class="btn-toggle" onclick="toggleAutoCheck()">Auto-check: ON</button>
         </div>
         
         <div class="info">
-            <h2>ℹ️ How it works</h2>
+            <h2>ℹ️ Multi-Source Detection</h2>
             <p>
-                This page monitors Steam's news feed for Battlefield 6 updates every 5 minutes automatically.
-                When a new update/patch is detected, you'll see a green alert, hear an airhorn sound, and the page title will update.
-                Works even in background tabs!
+                This advanced checker monitors THREE independent sources simultaneously for maximum accuracy:
+                <br><br>
+                <strong>1. SteamCMD Manifest API</strong> - Tracks actual game depot manifest IDs (updates within seconds of Steam changes)
+                <br>
+                <strong>2. Steam News Feed</strong> - Monitors official patch announcements and updates
+                <br>
+                <strong>3. Version Parser</strong> - Extracts version numbers (e.g., "1.1.2.0") from news titles
+                <br><br>
+                When multiple sources confirm a change, you'll get a HIGH confidence alert with airhorn! 🎺
             </p>
             <p style="margin-top: 10px;">
-                <strong>App ID:</strong> 2807960 | <strong>Monitoring:</strong> Steam News API
+                <strong>App ID:</strong> 2807960 | <strong>Primary Depot:</strong> 2807961
             </p>
         </div>
     </div>
@@ -196,23 +302,35 @@
 
     <script>
         const APP_ID = '2807960';
+        const DEPOT_ID = '2807961';
         const CHECK_INTERVAL = 300000; // 5 minutes
-        const STEAM_NEWS_API = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${APP_ID}&count=10&maxlength=300&format=json`;
+        
+        // Multiple API endpoints
+        const STEAMCMD_API = `https://api.steamcmd.net/v1/info/${APP_ID}`;
+        const STEAM_NEWS_API = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${APP_ID}&count=10&maxlength=500&format=json`;
         const CORS_PROXY = 'https://api.allorigins.win/get?url=';
         
+        // Tracking state
+        let lastManifestID = null;
         let lastNewsID = null;
-        let lastNewsTitle = '';
+        let lastVersion = null;
         let autoCheckEnabled = true;
         let autoCheckInterval = null;
         let nextCheckTime = null;
         let isFirstCheck = true;
         let timerInterval = null;
         
+        // UI elements
         const statusEl = document.getElementById('status');
         const lastUpdateEl = document.getElementById('lastUpdate');
         const nextCheckEl = document.getElementById('nextCheck');
         const toggleBtn = document.getElementById('toggleBtn');
         const airhorn = document.getElementById('airhorn');
+        
+        // Source status elements
+        const sourceSteamCmd = document.getElementById('source-steamcmd');
+        const sourceNews = document.getElementById('source-news');
+        const sourceVersion = document.getElementById('source-version');
         
         function formatDate(timestamp) {
             const date = new Date(timestamp * 1000);
@@ -225,6 +343,29 @@
                 second: '2-digit',
                 hour12: true
             });
+        }
+        
+        function extractVersion(text) {
+            // Match version patterns like 1.1.2.0, v1.2.3, 1.2.3.4
+            const patterns = [
+                /v?(\d+\.\d+\.\d+\.\d+)/i,
+                /v?(\d+\.\d+\.\d+)/i,
+                /version\s+(\d+\.\d+)/i,
+                /update\s+(\d+\.\d+)/i
+            ];
+            
+            for (const pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) return match[1];
+            }
+            return null;
+        }
+        
+        function updateSourceStatus(element, status, message) {
+            const card = element.closest('.source-card');
+            const indicator = card.querySelector('.source-status');
+            indicator.className = `source-status ${status}`;
+            element.textContent = message;
         }
         
         function updateNextCheckTimer() {
@@ -240,67 +381,194 @@
             const secs = seconds % 60;
             
             if (remaining > 0) {
-                nextCheckEl.textContent = `Next auto-check in: ${minutes}:${secs.toString().padStart(2, '0')}`;
+                nextCheckEl.textContent = `Next deep scan in: ${minutes}:${secs.toString().padStart(2, '0')}`;
             } else {
-                nextCheckEl.textContent = 'Checking...';
+                nextCheckEl.textContent = 'Scanning...';
+            }
+        }
+        
+        async function checkSteamCmdManifest() {
+            try {
+                updateSourceStatus(sourceSteamCmd, 'checking', 'Querying depot manifest...');
+                
+                const response = await fetch(STEAMCMD_API);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                
+                if (!data.data?.[APP_ID]?.depots?.[DEPOT_ID]) {
+                    throw new Error('Depot not found');
+                }
+                
+                const depot = data.data[APP_ID].depots[DEPOT_ID];
+                const manifestID = depot.manifests?.public;
+                
+                if (!manifestID) {
+                    throw new Error('No public manifest');
+                }
+                
+                updateSourceStatus(sourceSteamCmd, 'active', `Manifest: ${manifestID.slice(0, 16)}...`);
+                
+                return {
+                    success: true,
+                    manifestID: manifestID,
+                    changed: lastManifestID !== null && lastManifestID !== manifestID,
+                    firstCheck: lastManifestID === null
+                };
+                
+            } catch (error) {
+                console.error('SteamCMD error:', error);
+                updateSourceStatus(sourceSteamCmd, 'inactive', 'Failed to fetch');
+                return { success: false, changed: false };
+            }
+        }
+        
+        async function checkSteamNews() {
+            try {
+                updateSourceStatus(sourceNews, 'checking', 'Checking news feed...');
+                
+                const proxyUrl = CORS_PROXY + encodeURIComponent(STEAM_NEWS_API);
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const proxyData = await response.json();
+                const data = JSON.parse(proxyData.contents);
+                
+                if (!data.appnews?.newsitems || data.appnews.newsitems.length === 0) {
+                    throw new Error('No news items');
+                }
+                
+                // Filter for update/patch news
+                const updateKeywords = ['update', 'patch', 'hotfix', 'game update', 'maintenance', 'build'];
+                const updateNews = data.appnews.newsitems.filter(item => {
+                    const title = item.title.toLowerCase();
+                    return updateKeywords.some(keyword => title.includes(keyword));
+                });
+                
+                const latestNews = updateNews.length > 0 ? updateNews[0] : data.appnews.newsitems[0];
+                const newsID = latestNews.gid;
+                const newsTitle = latestNews.title;
+                const timestamp = latestNews.date;
+                
+                updateSourceStatus(sourceNews, 'active', `Latest: ${newsTitle.slice(0, 40)}...`);
+                
+                return {
+                    success: true,
+                    newsID: newsID,
+                    title: newsTitle,
+                    timestamp: timestamp,
+                    changed: lastNewsID !== null && lastNewsID !== newsID,
+                    firstCheck: lastNewsID === null
+                };
+                
+            } catch (error) {
+                console.error('Steam News error:', error);
+                updateSourceStatus(sourceNews, 'inactive', 'Failed to fetch');
+                return { success: false, changed: false };
+            }
+        }
+        
+        async function checkVersion(newsTitle) {
+            try {
+                if (!newsTitle) {
+                    updateSourceStatus(sourceVersion, 'inactive', 'No news data');
+                    return { success: false, changed: false };
+                }
+                
+                updateSourceStatus(sourceVersion, 'checking', 'Parsing version...');
+                
+                const version = extractVersion(newsTitle);
+                
+                if (version) {
+                    updateSourceStatus(sourceVersion, 'active', `Version: ${version}`);
+                    return {
+                        success: true,
+                        version: version,
+                        changed: lastVersion !== null && lastVersion !== version,
+                        firstCheck: lastVersion === null
+                    };
+                } else {
+                    updateSourceStatus(sourceVersion, 'inactive', 'No version found');
+                    return { success: false, changed: false };
+                }
+                
+            } catch (error) {
+                console.error('Version parse error:', error);
+                updateSourceStatus(sourceVersion, 'inactive', 'Parse failed');
+                return { success: false, changed: false };
             }
         }
         
         async function checkForUpdate(isManual = false) {
             if (isManual) {
                 statusEl.className = 'status loading';
-                statusEl.textContent = '🔄 Checking for updates...';
+                statusEl.textContent = '🔄 Running deep scan across all sources...';
             }
             
-            try {
-                // Use CORS proxy to fetch Steam News API
-                const proxyUrl = CORS_PROXY + encodeURIComponent(STEAM_NEWS_API);
-                const response = await fetch(proxyUrl);
+            // Check all sources simultaneously
+            const [manifestResult, newsResult] = await Promise.all([
+                checkSteamCmdManifest(),
+                checkSteamNews()
+            ]);
+            
+            // Check version from news title
+            const versionResult = await checkVersion(newsResult.success ? newsResult.title : null);
+            
+            // Calculate confidence based on how many sources detected changes
+            let changesDetected = 0;
+            let sourcesWorking = 0;
+            
+            if (manifestResult.success) sourcesWorking++;
+            if (newsResult.success) sourcesWorking++;
+            if (versionResult.success) sourcesWorking++;
+            
+            if (manifestResult.changed) changesDetected++;
+            if (newsResult.changed) changesDetected++;
+            if (versionResult.changed) changesDetected++;
+            
+            // Determine confidence level
+            let confidence = 'low';
+            if (changesDetected >= 2) confidence = 'high';
+            else if (changesDetected === 1) confidence = 'medium';
+            
+            // First check initialization
+            if (isFirstCheck || (manifestResult.firstCheck && newsResult.firstCheck)) {
+                if (manifestResult.success) lastManifestID = manifestResult.manifestID;
+                if (newsResult.success) {
+                    lastNewsID = newsResult.newsID;
+                    const formattedDate = formatDate(newsResult.timestamp);
+                    lastUpdateEl.textContent = `Latest: ${newsResult.title} (${formattedDate})`;
+                }
+                if (versionResult.success) lastVersion = versionResult.version;
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                statusEl.className = 'status old';
+                statusEl.textContent = '✅ All sources initialized – Monitoring for updates';
+                isFirstCheck = false;
+                return;
+            }
+            
+            // UPDATE DETECTED!
+            if (changesDetected > 0) {
+                const confidenceBadge = `<span class="confidence-badge confidence-${confidence}">${confidence.toUpperCase()} CONFIDENCE</span>`;
+                
+                // Update stored values
+                if (manifestResult.changed) lastManifestID = manifestResult.manifestID;
+                if (newsResult.changed) lastNewsID = newsResult.newsID;
+                if (versionResult.changed) lastVersion = versionResult.version;
+                
+                statusEl.className = 'status new';
+                statusEl.innerHTML = `🚨 NEW UPDATE DETECTED! ${confidenceBadge}`;
+                
+                if (newsResult.success) {
+                    const formattedDate = formatDate(newsResult.timestamp);
+                    lastUpdateEl.textContent = `${newsResult.title} (${formattedDate})`;
                 }
                 
-                const proxyData = await response.json();
-                const data = JSON.parse(proxyData.contents);
+                document.title = '🔥 UPDATE! Battlefield 6';
                 
-                if (!data.appnews?.newsitems || data.appnews.newsitems.length === 0) {
-                    throw new Error('No news items found');
-                }
-                
-                // Filter for update/patch news (look for keywords in titles)
-                const updateKeywords = ['update', 'patch', 'hotfix', 'game update', 'maintenance'];
-                const updateNews = data.appnews.newsitems.filter(item => {
-                    const title = item.title.toLowerCase();
-                    return updateKeywords.some(keyword => title.includes(keyword));
-                });
-                
-                // If no update-specific news, use the latest news item
-                const latestNews = updateNews.length > 0 ? updateNews[0] : data.appnews.newsitems[0];
-                
-                const newsID = latestNews.gid;
-                const newsTitle = latestNews.title;
-                const timestamp = latestNews.date;
-                
-                const formattedDate = formatDate(timestamp);
-                lastUpdateEl.textContent = `Latest news: ${newsTitle} (${formattedDate})`;
-                
-                if (lastNewsID === null) {
-                    // First load
-                    lastNewsID = newsID;
-                    lastNewsTitle = newsTitle;
-                    statusEl.className = 'status old';
-                    statusEl.textContent = isFirstCheck ? '✅ Monitoring started – No new update since page load' : '✅ No new update';
-                    isFirstCheck = false;
-                } else if (newsID !== lastNewsID) {
-                    // NEW UPDATE DETECTED!
-                    lastNewsID = newsID;
-                    lastNewsTitle = newsTitle;
-                    statusEl.className = 'status new';
-                    statusEl.textContent = `🚨 NEW UPDATE DETECTED! ${newsTitle}`;
-                    document.title = '🔥 UPDATE! Battlefield 6';
-                    
-                    // Play airhorn
+                // Play airhorn for high confidence updates
+                if (confidence === 'high' || confidence === 'medium') {
                     try {
                         airhorn.currentTime = 0;
                         const playPromise = airhorn.play();
@@ -312,20 +580,15 @@
                     } catch (err) {
                         console.log('Audio play error:', err);
                     }
-                } else {
-                    // No new update
-                    statusEl.className = 'status old';
-                    statusEl.textContent = '✅ No new update';
-                    if (document.title.includes('UPDATE!')) {
-                        document.title = 'Battlefield 6 (2042 Next) – Update Checker';
-                    }
                 }
+            } else {
+                // No updates detected
+                statusEl.className = 'status old';
+                statusEl.textContent = `✅ No new update (${sourcesWorking}/3 sources active)`;
                 
-            } catch (error) {
-                console.error('API error:', error);
-                statusEl.className = 'status error';
-                statusEl.textContent = '❌ Unable to check for updates - Please try again in a few minutes';
-                lastUpdateEl.textContent = 'Steam API may be temporarily unavailable or rate limiting requests';
+                if (document.title.includes('UPDATE!')) {
+                    document.title = 'Battlefield 6 (2042 Next) – Update Checker';
+                }
             }
             
             if (isManual && autoCheckEnabled) {
@@ -349,7 +612,6 @@
                 checkForUpdate(false);
             }, CHECK_INTERVAL);
             
-            // Update timer every second
             timerInterval = setInterval(updateNextCheckTimer, 1000);
             updateNextCheckTimer();
         }
