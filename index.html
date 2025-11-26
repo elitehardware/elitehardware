@@ -1,792 +1,465 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Battlefield 6 – Update Checker</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
-            color: #ffffff;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 50px 20px;
-        }
-        
-        .container {
-            max-width: 1000px;
-            width: 100%;
-        }
-        
-        h1 {
-            text-align: center;
-            margin-bottom: 40px;
-            font-size: 2.5em;
-            text-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
-        }
-        
-        .status {
-            font-size: 2em;
-            text-align: center;
-            padding: 30px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            font-weight: bold;
-        }
-        
-        .status.new {
-            background: rgba(0, 255, 0, 0.1);
-            color: #00ff00;
-            border: 3px solid #00ff00;
-            animation: pulse 1s infinite;
-        }
-        
-        .status.old {
-            background: rgba(255, 68, 68, 0.1);
-            color: #ff4444;
-            border: 3px solid #ff4444;
-        }
-        
-        .status.loading {
-            background: rgba(255, 255, 0, 0.1);
-            color: #ffff00;
-            border: 3px solid #ffff00;
-        }
-        
-        .status.error {
-            background: rgba(255, 136, 0, 0.1);
-            color: #ff8800;
-            border: 3px solid #ff8800;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-        }
-        
-        .confidence-badge {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 0.6em;
-            margin-left: 10px;
-            font-weight: bold;
-        }
-        
-        .confidence-high {
-            background: rgba(0, 255, 0, 0.2);
-            color: #00ff00;
-            border: 2px solid #00ff00;
-        }
-        
-        .confidence-medium {
-            background: rgba(255, 255, 0, 0.2);
-            color: #ffff00;
-            border: 2px solid #ffff00;
-        }
-        
-        .confidence-low {
-            background: rgba(255, 136, 0, 0.2);
-            color: #ff8800;
-            border: 2px solid #ff8800;
-        }
-        
-        .last-update {
-            text-align: center;
-            font-size: 1.2em;
-            margin-bottom: 15px;
-            color: #aaaaaa;
-        }
-        
-        .sources-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-        
-        .source-card {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .source-card h3 {
-            font-size: 0.9em;
-            color: #00ff00;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .source-status {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-        
-        .source-status.active {
-            background: #00ff00;
-            box-shadow: 0 0 10px #00ff00;
-        }
-        
-        .source-status.inactive {
-            background: #ff4444;
-        }
-        
-        .source-status.checking {
-            background: #ffff00;
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        
-        .source-card p {
-            font-size: 0.85em;
-            color: #cccccc;
-            line-height: 1.4;
-        }
-        
-        .controls {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: 30px;
-        }
-        
-        button {
-            padding: 15px 30px;
-            font-size: 1em;
-            font-weight: bold;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-        }
-        
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        .btn-check {
-            background: linear-gradient(135deg, #00cc00 0%, #00ff00 100%);
-            color: #000000;
-        }
-        
-        .btn-toggle {
-            background: linear-gradient(135deg, #0066cc 0%, #0088ff 100%);
-            color: #ffffff;
-        }
-        
-        .btn-toggle.off {
-            background: linear-gradient(135deg, #666666 0%, #888888 100%);
-        }
-        
-        .info {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .info h2 {
-            margin-bottom: 10px;
-            color: #00ff00;
-        }
-        
-        .info p {
-            line-height: 1.6;
-            color: #cccccc;
-        }
-        
-        .next-check {
-            text-align: center;
-            font-size: 0.9em;
-            color: #888888;
-            margin-top: 10px;
-        }
-
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 1.8em;
-            }
-            .status {
-                font-size: 1.5em;
-                padding: 20px;
-            }
-            button {
-                padding: 12px 20px;
-                font-size: 0.9em;
-            }
-            .sources-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Live Geopolitical Risk Monitor — RSS (No API)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#ffb020;--good:#16a34a;--bad:#ef4444}
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:0;background:linear-gradient(180deg,#071027 0%, #071327 100%);color:#e6eef7}
+  .wrap{max-width:1100px;margin:20px auto;padding:18px}
+  header{display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:20px}
+  .grid{display:grid;grid-template-columns:1fr 420px;gap:14px;margin-top:14px}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:12px;border-radius:10px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+  label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
+  .controls{display:flex;gap:8px;align-items:center}
+  button{background:var(--accent);border:none;color:#071327;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+  .muted{color:var(--muted);font-size:13px}
+  .small{font-size:13px}
+  .headline{padding:8px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02)}
+  .kw{font-weight:700;color:var(--accent)}
+  .score-circle{width:140px;height:140px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:12px auto;background:linear-gradient(135deg, rgba(255,176,32,0.08), rgba(255,176,32,0.04));border:1px solid rgba(255,176,32,0.08)}
+  .source-toggle{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+  .chip.on{background:linear-gradient(90deg, rgba(16,185,129,0.12), rgba(59,130,246,0.06));border-color:rgba(59,130,246,0.14)}
+  footer{margin-top:12px;color:var(--muted);font-size:13px}
+  .topline{display:flex;justify-content:space-between;align-items:center;gap:20px}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎮 Battlefield 6 – Advanced Update Checker</h1>
-        
-        <div id="status" class="status loading">Initializing multi-source detection...</div>
-        <div id="lastUpdate" class="last-update">Checking all sources...</div>
-        <div id="nextCheck" class="next-check"></div>
-        
-        <div class="sources-grid" id="sourcesGrid">
-            <div class="source-card">
-                <h3><span class="source-status checking"></span> Steam Store API</h3>
-                <p id="source-store">Checking app details...</p>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🛰 Live Geopolitical Risk Monitor (RSS — No API)</h1>
+      <div class="muted small">Aggregates public RSS feeds, computes a transparency-first risk score. Use as demo/awareness only.</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- left: controls & feed -->
+    <div>
+      <div class="card">
+        <div class="topline">
+          <div>
+            <label class="small">Sensitivity</label>
+            <input id="sensitivity" type="range" min="0.4" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div style="text-align:right">
+            <div class="muted small">Status: <span id="status">idle</span></div>
+            <div style="margin-top:6px" class="controls">
+              <button id="start">Start</button>
+              <button id="stop" class="ghost" disabled>Stop</button>
+              <button id="refresh" class="ghost">Refresh</button>
             </div>
-            <div class="source-card">
-                <h3><span class="source-status checking"></span> Steam News</h3>
-                <p id="source-news">Checking announcements...</p>
-            </div>
-            <div class="source-card">
-                <h3><span class="source-status checking"></span> Version Parser</h3>
-                <p id="source-version">Extracting versions...</p>
-            </div>
-            <div class="source-card">
-                <h3><span class="source-status checking"></span> News Content Scan</h3>
-                <p id="source-content">Scanning for updates...</p>
-            </div>
+          </div>
         </div>
-        
-        <div class="controls">
-            <button class="btn-check" onclick="checkForUpdate(true)">🔍 Deep Scan Now</button>
-            <button id="toggleBtn" class="btn-toggle" onclick="toggleAutoCheck()">Auto-check: ON</button>
+
+        <label class="small">Feeds (toggle to include/exclude)</label>
+        <div id="feedToggles" class="source-toggle"></div>
+
+        <label class="small">Proxies (fallback order — used automatically)</label>
+        <div class="muted small">
+          <div>Using public proxy chain to overcome browser CORS. These are for demos only.</div>
+          <ul class="muted small">
+            <li>https://api.allorigins.win/raw?url=</li>
+            <li>https://thingproxy.freeboard.io/fetch/</li>
+            <li>https://api.allorigins.win/get?url= (fallback)</li>
+          </ul>
         </div>
-        
-        <div class="info">
-            <h2>ℹ️ Advanced Multi-Source Detection</h2>
-            <p>
-                This checker monitors FOUR independent sources for maximum accuracy:
-                <br><br>
-                <strong>1. Steam Store API</strong> - Tracks game metadata and last update timestamp
-                <br>
-                <strong>2. Steam News Feed</strong> - Monitors official patch announcements
-                <br>
-                <strong>3. News Content Scanner</strong> - Deep scans news content for update keywords and changes
-                <br>
-                <strong>4. Version Parser</strong> - Extracts version numbers from news (e.g., "1.2.0", "Build 12345")
-                <br><br>
-                <strong>Confidence System:</strong>
-                <br>
-                🟢 HIGH (3+ sources) = Airhorn alert!
-                <br>
-                🟡 MEDIUM (2 sources) = Airhorn + visual alert
-                <br>
-                🟠 LOW (1 source) = Visual alert only
-            </p>
-            <p style="margin-top: 10px;">
-                <strong>App ID:</strong> 2807960 | <strong>Auto-check:</strong> Every 5 minutes
-            </p>
-        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3 style="margin:0">Recent matched headlines</h3>
+        <div id="headlines" style="max-height:520px;overflow:auto;margin-top:8px"></div>
+      </div>
     </div>
 
-    <audio id="airhorn" preload="auto">
-        <source src="https://cdn.jsdelivr.net/gh/mattbrictson/airhorn@master/airhorn.mp3" type="audio/mpeg">
-    </audio>
+    <!-- right: viz -->
+    <div>
+      <div class="card">
+        <h3 style="margin:0">Live risk</h3>
+        <div id="scoreWrap">
+          <div id="scoreCircle" class="score-circle">—</div>
+          <div class="muted small" style="text-align:center">0 = low / 100 = high (heuristic)</div>
+        </div>
+      </div>
 
-    <script>
-        const APP_ID = '2807960';
-        const DEPOT_ID = '2807961';
-        const CHECK_INTERVAL = 300000; // 5 minutes
-        
-        // Multiple API endpoints
-        const STEAM_STORE_API = `https://store.steampowered.com/api/appdetails?appids=${APP_ID}`;
-        const STEAMCMD_API = `https://api.steamcmd.net/v1/info/${APP_ID}`;
-        const STEAM_NEWS_API = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${APP_ID}&count=10&maxlength=500&format=json`;
-        const CORS_PROXY = 'https://api.allorigins.win/get?url=';
-        
-        // Tracking state
-        let lastStoreUpdateTime = null;
-        let lastNewsID = null;
-        let lastVersion = null;
-        let lastContentHash = null;
-        let autoCheckEnabled = true;
-        let autoCheckInterval = null;
-        let nextCheckTime = null;
-        let isFirstCheck = true;
-        let timerInterval = null;
-        
-        // UI elements
-        const statusEl = document.getElementById('status');
-        const lastUpdateEl = document.getElementById('lastUpdate');
-        const nextCheckEl = document.getElementById('nextCheck');
-        const toggleBtn = document.getElementById('toggleBtn');
-        const airhorn = document.getElementById('airhorn');
-        
-        // Source status elements
-        const sourceStore = document.getElementById('source-store');
-        const sourceNews = document.getElementById('source-news');
-        const sourceVersion = document.getElementById('source-version');
-        const sourceContent = document.getElementById('source-content');
-        
-        function formatDate(timestamp) {
-            const date = new Date(timestamp * 1000);
-            return date.toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            });
-        }
-        
-        function extractVersion(text) {
-            if (!text) return null;
-            
-            // Match version patterns
-            const patterns = [
-                /v?(\d+\.\d+\.\d+\.\d+)/i,
-                /v?(\d+\.\d+\.\d+)/i,
-                /version\s+v?(\d+\.\d+)/i,
-                /update\s+v?(\d+\.\d+)/i,
-                /patch\s+v?(\d+\.\d+)/i,
-                /build\s+(\d+)/i,
-                /\bv(\d+)\b/i,
-                /(\d+\.\d+)\s+update/i,
-                /season\s+(\d+)/i
-            ];
-            
-            for (const pattern of patterns) {
-                const match = text.match(pattern);
-                if (match) return match[1];
-            }
-            return null;
-        }
-        
-        function updateSourceStatus(element, status, message) {
-            const card = element.closest('.source-card');
-            const indicator = card.querySelector('.source-status');
-            indicator.className = `source-status ${status}`;
-            element.textContent = message;
-        }
-        
-        function updateNextCheckTimer() {
-            if (!autoCheckEnabled || !nextCheckTime) {
-                nextCheckEl.textContent = '';
-                return;
-            }
-            
-            const now = Date.now();
-            const remaining = Math.max(0, nextCheckTime - now);
-            const seconds = Math.floor(remaining / 1000);
-            const minutes = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            
-            if (remaining > 0) {
-                nextCheckEl.textContent = `Next deep scan in: ${minutes}:${secs.toString().padStart(2, '0')}`;
-            } else {
-                nextCheckEl.textContent = 'Scanning...';
-            }
-        }
-        
-        async function checkSteamStoreAPI() {
-            try {
-                updateSourceStatus(sourceStore, 'checking', 'Querying store API...');
-                
-                const proxyUrl = CORS_PROXY + encodeURIComponent(STEAM_STORE_API);
-                const response = await fetch(proxyUrl);
-                
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const proxyData = await response.json();
-                const data = JSON.parse(proxyData.contents);
-                
-                if (!data[APP_ID]?.success || !data[APP_ID]?.data) {
-                    throw new Error('Invalid store response');
-                }
-                
-                const appData = data[APP_ID].data;
-                const releaseDate = appData.release_date?.date || 'Unknown';
-                
-                // Check if there's a last_updated field or use release date as fallback
-                const updateIndicator = appData.updated_at || appData.release_date?.date || releaseDate;
-                
-                updateSourceStatus(sourceStore, 'active', `Release: ${releaseDate}`);
-                
-                return {
-                    success: true,
-                    updateTime: updateIndicator,
-                    name: appData.name,
-                    changed: lastStoreUpdateTime !== null && lastStoreUpdateTime !== updateIndicator,
-                    firstCheck: lastStoreUpdateTime === null
-                };
-                
-            } catch (error) {
-                console.error('Steam Store API error:', error);
-                updateSourceStatus(sourceStore, 'inactive', 'API unavailable');
-                return { success: false, changed: false };
-            }
-        }
-        
-        async function checkNewsContent() {
-            try {
-                updateSourceStatus(sourceContent, 'checking', 'Scanning news content...');
-                
-                const proxyUrl = CORS_PROXY + encodeURIComponent(STEAM_NEWS_API);
-                const response = await fetch(proxyUrl);
-                
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const proxyData = await response.json();
-                const data = JSON.parse(proxyData.contents);
-                
-                if (!data.appnews?.newsitems || data.appnews.newsitems.length === 0) {
-                    throw new Error('No news items');
-                }
-                
-                // Look for specific update indicators in content
-                const updateIndicators = [
-                    'patch', 'update', 'hotfix', 'fixed', 'changed', 
-                    'improved', 'balance', 'bug', 'issue', 'changelog',
-                    'version', 'build', 'release notes'
-                ];
-                
-                let updateScore = 0;
-                let latestUpdateNews = null;
-                
-                for (const item of data.appnews.newsitems.slice(0, 5)) {
-                    const content = (item.contents || '').toLowerCase();
-                    const title = item.title.toLowerCase();
-                    
-                    let score = 0;
-                    for (const indicator of updateIndicators) {
-                        if (content.includes(indicator)) score++;
-                        if (title.includes(indicator)) score += 2;
-                    }
-                    
-                    if (score > updateScore) {
-                        updateScore = score;
-                        latestUpdateNews = item;
-                    }
-                }
-                
-                if (latestUpdateNews) {
-                    // Create a hash of the content to detect changes
-                    const contentString = latestUpdateNews.title + latestUpdateNews.contents;
-                    const contentHash = await simpleHash(contentString);
-                    
-                    const snippet = latestUpdateNews.contents.slice(0, 50).replace(/\s+/g, ' ');
-                    updateSourceStatus(sourceContent, 'active', `Found: "${snippet}..."`);
-                    
-                    return {
-                        success: true,
-                        contentHash: contentHash,
-                        newsItem: latestUpdateNews,
-                        updateScore: updateScore,
-                        changed: lastContentHash !== null && lastContentHash !== contentHash,
-                        firstCheck: lastContentHash === null
-                    };
-                }
-                
-                updateSourceStatus(sourceContent, 'inactive', 'No update content found');
-                return { success: false, changed: false };
-                
-            } catch (error) {
-                console.error('News content scan error:', error);
-                updateSourceStatus(sourceContent, 'inactive', 'Scan failed');
-                return { success: false, changed: false };
-            }
-        }
-        
-        async function simpleHash(str) {
-            // Simple hash function for content comparison
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return hash.toString();
-        }
-        
-        async function checkSteamNews() {
-            try {
-                updateSourceStatus(sourceNews, 'checking', 'Checking news feed...');
-                
-                const proxyUrl = CORS_PROXY + encodeURIComponent(STEAM_NEWS_API);
-                const response = await fetch(proxyUrl);
-                
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const proxyData = await response.json();
-                const data = JSON.parse(proxyData.contents);
-                
-                if (!data.appnews?.newsitems || data.appnews.newsitems.length === 0) {
-                    throw new Error('No news items');
-                }
-                
-                // Filter for update/patch news
-                const updateKeywords = ['update', 'patch', 'hotfix', 'game update', 'maintenance', 'build', 'version', 'release'];
-                
-                // Filter out non-game news
-                const excludeKeywords = ['top sellers', 'best selling', 'weekly chart', 'most played', 'steam charts'];
-                
-                const updateNews = data.appnews.newsitems.filter(item => {
-                    const title = item.title.toLowerCase();
-                    const content = (item.contents || '').toLowerCase();
-                    
-                    // Exclude non-game news
-                    const isExcluded = excludeKeywords.some(keyword => 
-                        title.includes(keyword) || content.includes(keyword)
-                    );
-                    
-                    if (isExcluded) return false;
-                    
-                    // Include if it has update keywords
-                    return updateKeywords.some(keyword => 
-                        title.includes(keyword) || content.includes(keyword)
-                    );
-                });
-                
-                const latestNews = updateNews.length > 0 ? updateNews[0] : data.appnews.newsitems[0];
-                const newsID = latestNews.gid;
-                const newsTitle = latestNews.title;
-                const newsContent = latestNews.contents || '';
-                const timestamp = latestNews.date;
-                
-                updateSourceStatus(sourceNews, 'active', `${newsTitle.slice(0, 35)}...`);
-                
-                return {
-                    success: true,
-                    newsID: newsID,
-                    title: newsTitle,
-                    content: newsContent,
-                    timestamp: timestamp,
-                    changed: lastNewsID !== null && lastNewsID !== newsID,
-                    firstCheck: lastNewsID === null
-                };
-                
-            } catch (error) {
-                console.error('Steam News error:', error);
-                updateSourceStatus(sourceNews, 'inactive', 'Failed to fetch');
-                return { success: false, changed: false };
-            }
-        }
-        
-        async function checkVersion(newsTitle, newsContent = '') {
-            try {
-                if (!newsTitle) {
-                    updateSourceStatus(sourceVersion, 'inactive', 'No news data');
-                    return { success: false, changed: false };
-                }
-                
-                updateSourceStatus(sourceVersion, 'checking', 'Parsing version...');
-                
-                // Try to extract from title first, then from content
-                let version = extractVersion(newsTitle);
-                if (!version && newsContent) {
-                    version = extractVersion(newsContent);
-                }
-                
-                if (version) {
-                    updateSourceStatus(sourceVersion, 'active', `Version: ${version}`);
-                    return {
-                        success: true,
-                        version: version,
-                        changed: lastVersion !== null && lastVersion !== version,
-                        firstCheck: lastVersion === null
-                    };
-                } else {
-                    updateSourceStatus(sourceVersion, 'inactive', 'No version found');
-                    return { success: false, changed: false };
-                }
-                
-            } catch (error) {
-                console.error('Version parse error:', error);
-                updateSourceStatus(sourceVersion, 'inactive', 'Parse failed');
-                return { success: false, changed: false };
-            }
-        }
-        
-        async function checkForUpdate(isManual = false) {
-            if (isManual) {
-                statusEl.className = 'status loading';
-                statusEl.textContent = '🔄 Running deep scan across all sources...';
-            }
-            
-            // Check all sources simultaneously
-            const [storeResult, newsResult, contentResult] = await Promise.all([
-                checkSteamStoreAPI(),
-                checkSteamNews(),
-                checkNewsContent()
-            ]);
-            
-            // Check version from news
-            const versionResult = await checkVersion(
-                newsResult.success ? newsResult.title : null,
-                newsResult.success ? newsResult.content : null
-            );
-            
-            // Calculate confidence based on how many sources detected changes
-            let changesDetected = 0;
-            let sourcesWorking = 0;
-            
-            if (storeResult.success) sourcesWorking++;
-            if (newsResult.success) sourcesWorking++;
-            if (contentResult.success) sourcesWorking++;
-            if (versionResult.success) sourcesWorking++;
-            
-            if (storeResult.changed) changesDetected++;
-            if (newsResult.changed) changesDetected++;
-            if (contentResult.changed) changesDetected++;
-            if (versionResult.changed) changesDetected++;
-            
-            // Determine confidence level
-            let confidence = 'low';
-            if (changesDetected >= 3) confidence = 'high';
-            else if (changesDetected === 2) confidence = 'medium';
-            else if (changesDetected === 1) confidence = 'low';
-            
-            // First check initialization
-            if (isFirstCheck) {
-                if (storeResult.success) lastStoreUpdateTime = storeResult.updateTime;
-                if (newsResult.success) {
-                    lastNewsID = newsResult.newsID;
-                    const formattedDate = formatDate(newsResult.timestamp);
-                    lastUpdateEl.textContent = `Latest: ${newsResult.title} (${formattedDate})`;
-                }
-                if (contentResult.success) lastContentHash = contentResult.contentHash;
-                if (versionResult.success) lastVersion = versionResult.version;
-                
-                statusEl.className = 'status old';
-                statusEl.textContent = `✅ All sources initialized (${sourcesWorking}/4 active)`;
-                isFirstCheck = false;
-                return;
-            }
-            
-            // UPDATE DETECTED!
-            if (changesDetected > 0) {
-                const confidenceBadge = `<span class="confidence-badge confidence-${confidence}">${confidence.toUpperCase()} CONFIDENCE</span>`;
-                
-                // Update stored values
-                if (storeResult.changed) lastStoreUpdateTime = storeResult.updateTime;
-                if (newsResult.changed) lastNewsID = newsResult.newsID;
-                if (contentResult.changed) lastContentHash = contentResult.contentHash;
-                if (versionResult.changed) lastVersion = versionResult.version;
-                
-                statusEl.className = 'status new';
-                statusEl.innerHTML = `🚨 NEW UPDATE DETECTED! ${confidenceBadge}`;
-                
-                if (newsResult.success) {
-                    const formattedDate = formatDate(newsResult.timestamp);
-                    lastUpdateEl.textContent = `${newsResult.title} (${formattedDate})`;
-                }
-                
-                document.title = '🔥 UPDATE! Battlefield 6';
-                
-                // Play airhorn for medium/high confidence updates
-                if (confidence === 'high' || confidence === 'medium') {
-                    try {
-                        airhorn.currentTime = 0;
-                        const playPromise = airhorn.play();
-                        if (playPromise !== undefined) {
-                            playPromise.catch(err => {
-                                console.log('Audio autoplay blocked:', err);
-                            });
-                        }
-                    } catch (err) {
-                        console.log('Audio play error:', err);
-                    }
-                }
-            } else {
-                // No updates detected
-                statusEl.className = 'status old';
-                statusEl.textContent = `✅ No new update (${sourcesWorking}/4 sources active)`;
-                
-                if (document.title.includes('UPDATE!')) {
-                    document.title = 'Battlefield 6 – Update Checker';
-                }
-            }
-            
-            if (isManual && autoCheckEnabled) {
-                restartAutoCheck();
-            }
-        }
-        
-        function startAutoCheck() {
-            if (autoCheckInterval) {
-                clearInterval(autoCheckInterval);
-            }
-            
-            if (timerInterval) {
-                clearInterval(timerInterval);
-            }
-            
-            nextCheckTime = Date.now() + CHECK_INTERVAL;
-            
-            autoCheckInterval = setInterval(() => {
-                nextCheckTime = Date.now() + CHECK_INTERVAL;
-                checkForUpdate(false);
-            }, CHECK_INTERVAL);
-            
-            timerInterval = setInterval(updateNextCheckTimer, 1000);
-            updateNextCheckTimer();
-        }
-        
-        function restartAutoCheck() {
-            if (autoCheckEnabled) {
-                startAutoCheck();
-            }
-        }
-        
-        function toggleAutoCheck() {
-            autoCheckEnabled = !autoCheckEnabled;
-            
-            if (autoCheckEnabled) {
-                toggleBtn.textContent = 'Auto-check: ON';
-                toggleBtn.className = 'btn-toggle';
-                startAutoCheck();
-            } else {
-                toggleBtn.textContent = 'Auto-check: OFF';
-                toggleBtn.className = 'btn-toggle off';
-                if (autoCheckInterval) {
-                    clearInterval(autoCheckInterval);
-                    autoCheckInterval = null;
-                }
-                if (timerInterval) {
-                    clearInterval(timerInterval);
-                    timerInterval = null;
-                }
-                nextCheckTime = null;
-                updateNextCheckTimer();
-            }
-        }
-        
-        // Initialize on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            checkForUpdate(false);
-            startAutoCheck();
-        });
-    </script>
+      <div class="card" style="margin-top:12px">
+        <h3 style="margin:0">Timeline</h3>
+        <canvas id="chart" width="400" height="200" style="margin-top:8px"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3 style="margin:0">Signals & top sources</h3>
+        <div id="signals" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="muted small">Note: This is a heuristic tool for experimentation. It is not an authoritative or predictive intelligence product.</div>
+  </footer>
+</div>
+
+<script>
+/* =========================
+   Configuration & feeds
+   ========================= */
+const FEEDS = {
+  "BBC": "https://feeds.bbci.co.uk/news/world/rss.xml",
+  "Reuters": "https://feeds.reuters.com/reuters/worldNews",
+  "Al Jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
+  "UN": "https://www.un.org/press/en/rss.xml",
+  "NATO": "https://www.nato.int/cps/en/natohq/news_rss.htm"
+};
+
+// proxy chain (try in order)
+const PROXIES = [
+  "https://api.allorigins.win/raw?url=",
+  "https://thingproxy.freeboard.io/fetch/",
+  "https://api.allorigins.win/get?url=" // some proxies return wrapped JSON — parser handles both
+];
+
+// Source reliability multipliers
+const SOURCE_RELIABILITY = {
+  "NATO": 1.7,
+  "UN": 1.6,
+  "Reuters": 1.35,
+  "BBC": 1.25,
+  "Al Jazeera": 1.15,
+  "Unknown": 0.8
+};
+
+// Major countries to boost severity
+const MAJOR_COUNTRIES = ["usa","united states","china","russia","iran","north korea","ukraine","nato","israel"];
+
+// Risk factor categories and weights
+const RISK_FACTORS = {
+  military: {keywords: ["missile","troop","invasion","military","airstrike","shelling","drill","mobiliz"], weight: 4},
+  diplomacy: {keywords: ["talks","negotiation","sanction","agreement","ceasefire","diplomat","negotiat"], weight: 2},
+  economic: {keywords: ["oil prices","trade war","sanction","market","inflation"], weight: 2.5},
+  nuclear: {keywords: ["nuclear","uranium","warhead","detonat","atomic"], weight: 8}
+};
+
+// small sentiment lexicon (in-browser; not ML)
+const POS_WORDS = ["peace","agreement","ceasefire","truce","accord","negotiation","deal"];
+const NEG_WORDS = ["attack","invasion","bomb","killed","dead","escalat","strike","retaliat","shelling","casualties"];
+
+/* =========================
+   UI references
+   ========================= */
+const statusEl = document.getElementById('status');
+const startBtn = document.getElementById('start');
+const stopBtn = document.getElementById('stop');
+const refreshBtn = document.getElementById('refresh');
+const feedToggles = document.getElementById('feedToggles');
+const headlinesEl = document.getElementById('headlines');
+const scoreCircle = document.getElementById('scoreCircle');
+const sensitivityInput = document.getElementById('sensitivity');
+const signalsEl = document.getElementById('signals');
+
+let enabledFeeds = Object.keys(FEEDS);
+let pollTimer = null;
+let timeline = JSON.parse(localStorage.getItem('risk_timeline') || '[]'); // array of {t, v}
+const MAX_HISTORY = 120;
+
+/* =========================
+   Helpers: fetch with proxy fallbacks
+   ========================= */
+async function fetchWithProxies(url){
+  for(const p of PROXIES){
+    try{
+      const full = p + encodeURIComponent(url);
+      const resp = await fetch(full, {cache: "no-store"});
+      if(!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+      // some proxies return raw XML; some (allorigins get) returns JSON {contents: "..."}
+      const txt = await resp.text();
+      // try to extract XML if wrapped:
+      if(txt.trim().startsWith('{')){
+        try{
+          const j = JSON.parse(txt);
+          if(j.contents) return j.contents;
+        }catch(e){}
+      }
+      return txt;
+    }catch(e){
+      // try next proxy silently
+      console.warn('proxy failed', p, e);
+    }
+  }
+  throw new Error('All proxies failed');
+}
+
+/* =========================
+   Parse RSS XML -> articles
+   ========================= */
+function parseRSS(xmlText, sourceName){
+  try{
+    const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+    // common item selectors: item (RSS) or entry (Atom)
+    const items = Array.from(doc.querySelectorAll('item, entry')).slice(0,4);
+    return items.map(it => {
+      const title = (it.querySelector('title')?.textContent || '').trim();
+      const desc = (it.querySelector('description')?.textContent || it.querySelector('summary')?.textContent || '').trim();
+      const link = (it.querySelector('link')?.textContent || it.querySelector('link')?.getAttribute('href') || '') || '';
+      const pubDate = (it.querySelector('pubDate')?.textContent || it.querySelector('published')?.textContent || '') || '';
+      return {source: sourceName, title, desc, link, pubDate, text: (title + ' ' + desc).trim()};
+    });
+  }catch(e){
+    console.warn('parse error for', sourceName, e);
+    return [];
+  }
+}
+
+/* =========================
+   Scoring logic
+   ========================= */
+function sentimentScore(text){
+  const t = text.toLowerCase();
+  let s = 0;
+  for(const w of POS_WORDS) if(t.includes(w)) s -= 1;
+  for(const w of NEG_WORDS) if(t.includes(w)) s += 1;
+  return Math.max(-5, Math.min(5, s)); // clamp
+}
+
+function analyzeArticle(article, sensitivity=1.0){
+  const t = article.text.toLowerCase();
+  let severity = 0;
+  const signals = [];
+
+  // category keywords
+  for(const [cat, data] of Object.entries(RISK_FACTORS)){
+    for(const kw of data.keywords){
+      if(t.includes(kw)){
+        severity += data.weight * sensitivity;
+        signals.push({type:cat, kw, weight: data.weight});
+      }
+    }
+  }
+
+  // major country boost
+  for(const c of MAJOR_COUNTRIES){
+    if(t.includes(c)){
+      severity += 5 * sensitivity;
+      signals.push({type:'major_country', kw:c, weight:5});
+    }
+  }
+
+  // sentiment
+  const sent = sentimentScore(t);
+  if(sent > 0) severity -= Math.abs(sent) * 0.8; // positive reduces
+  if(sent < 0) severity += Math.abs(sent) * 1.2; // negative increases
+  // source reliability multiplier applied later at overall aggregation
+
+  return {severity, signals, sentiment: sent};
+}
+
+/* combine article scores into a global score */
+function aggregateScores(articles, sensitivity=1.0){
+  // per-source weighted sum
+  let raw = 0;
+  const perSource = {};
+  const keywordSources = {}; // for narrative alignment
+  const details = [];
+
+  for(const a of articles){
+    const s = analyzeArticle(a, sensitivity);
+    const srcKey = a.source || 'Unknown';
+    const reliability = SOURCE_RELIABILITY[srcKey] || SOURCE_RELIABILITY[Object.keys(SOURCE_RELIABILITY).find(k=>srcKey.includes(k))] || (SOURCE_RELIABILITY['Unknown'] || 1);
+    const weighted = s.severity * reliability;
+
+    raw += weighted;
+    perSource[srcKey] = (perSource[srcKey] || 0) + weighted;
+
+    for(const sig of s.signals){
+      const k = sig.kw;
+      keywordSources[k] = keywordSources[k] || new Set();
+      keywordSources[k].add(srcKey);
+    }
+
+    details.push({article:a, severity:s.severity, weighted, signals:s.signals, sent:s.sentiment});
+  }
+
+  // narrative alignment: count keywords seen in multiple sources
+  let narrativeBoost = 0;
+  const aligned = {};
+  for(const [kw, setSrc] of Object.entries(keywordSources)){
+    if(setSrc.size >= 2){
+      aligned[kw] = Array.from(setSrc);
+      narrativeBoost += 3 * setSrc.size; // increases with number of sources
+    }
+  }
+
+  // normalize raw to 0..100 heuristic
+  // heuristic normalization parameters (tunable)
+  const base = raw + narrativeBoost;
+  // apply diminishing returns scaling
+  const scaled = 100 * (1 - Math.exp(-base / 25));
+  const finalScore = Math.max(0, Math.min(100, Math.round(scaled)));
+
+  return {finalScore, raw, scaled, perSource, aligned, details};
+}
+
+/* =========================
+   UI rendering & loop
+   ========================= */
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type:'line',
+  data:{labels: timeline.map(x=>x.t), datasets:[{label:'Risk', data: timeline.map(x=>x.v), fill:true, tension:0.3}]},
+  options:{responsive:true, scales:{y:{min:0,max:100}}}
+});
+
+function updateChart(value){
+  const t = new Date().toLocaleTimeString();
+  timeline.push({t, v: value});
+  if(timeline.length > MAX_HISTORY) timeline.shift();
+  localStorage.setItem('risk_timeline', JSON.stringify(timeline));
+  chart.data.labels = timeline.map(x=>x.t);
+  chart.data.datasets[0].data = timeline.map(x=>x.v);
+  chart.update();
+}
+
+/* render feed toggles */
+function makeFeedToggles(){
+  feedToggles.innerHTML = '';
+  Object.keys(FEEDS).forEach(name=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip on';
+    chip.textContent = name;
+    chip.onclick = () => {
+      chip.classList.toggle('on');
+      enabledFeeds = Array.from(feedToggles.querySelectorAll('.chip.on')).map(c=>c.textContent);
+    };
+    feedToggles.appendChild(chip);
+  });
+  // initial enabled list set
+  enabledFeeds = Object.keys(FEEDS);
+}
+makeFeedToggles();
+
+/* render headlines */
+function renderHeadlines(articles, keywords){
+  headlinesEl.innerHTML = '';
+  for(const a of articles){
+    const el = document.createElement('div');
+    el.className = 'headline';
+    // highlight keywords
+    let title = a.title;
+    for(const kw of keywords){
+      const re = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'ig');
+      title = title.replace(re, m => `<span class="kw">${m}</span>`);
+    }
+    el.innerHTML = `<div style="font-weight:700">${title}</div>
+                    <div class="muted small">${a.source} • ${a.pubDate || ''}</div>
+                    <div class="muted small" style="margin-top:6px">${a.desc ? a.desc.substring(0,220) : ''}</div>
+                    <div style="margin-top:6px"><a href="${a.link}" target="_blank" rel="noopener" class="muted small">read</a></div>`;
+    headlinesEl.appendChild(el);
+  }
+}
+
+/* fetch all enabled feeds */
+async function fetchAllFeeds(){
+  statusEl.textContent = 'fetching...';
+  const articles = [];
+  const feedNames = enabledFeeds.length ? enabledFeeds : Object.keys(FEEDS);
+  for(const name of feedNames){
+    const url = FEEDS[name];
+    try{
+      const xml = await fetchWithProxies(url);
+      const parsed = parseRSS(xml, name);
+      articles.push(...parsed);
+    }catch(e){
+      console.warn('feed failed', name, e);
+      // skip silently
+    }
+  }
+  statusEl.textContent = 'done';
+  return articles;
+}
+
+/* one polling pass */
+async function pollOnce(){
+  try{
+    const sensitivity = parseFloat(sensitivityInput.value || 1.0);
+    const articles = await fetchAllFeeds();
+    if(!articles.length){
+      statusEl.textContent = 'no articles';
+      return;
+    }
+
+    // analyze
+    const agg = aggregateScores(articles, sensitivity);
+
+    // render headlines (use top matched keywords as highlight)
+    const topKeywords = Object.keys(agg.aligned).length ? Object.keys(agg.aligned) : Object.values(agg.details).flatMap(d=>d.signals.map(s=>s.kw)).slice(0,12);
+    renderHeadlines(articles.slice(0,40), Array.from(new Set(topKeywords)));
+
+    // display score
+    scoreCircle.textContent = agg.finalScore + '/100';
+    updateChart(agg.finalScore);
+
+    // signals panel
+    signalsEl.innerHTML = '';
+    const s1 = document.createElement('div');
+    s1.innerHTML = `<div class="muted small">Raw: ${Math.round(agg.raw)} • Scaled: ${Math.round(agg.scaled)}</div>`;
+    signalsEl.appendChild(s1);
+
+    const srcList = document.createElement('div');
+    srcList.className = 'muted small';
+    srcList.innerHTML = '<strong>Top sources (impact)</strong><br/>';
+    Object.entries(agg.perSource).sort((a,b)=>b[1]-a[1]).slice(0,6).forEach(([src,val])=>{
+      const el = document.createElement('div');
+      el.textContent = `${src}: ${Math.round(val)}`;
+      srcList.appendChild(el);
+    });
+    signalsEl.appendChild(srcList);
+
+    if(Object.keys(agg.aligned).length){
+      const alignEl = document.createElement('div');
+      alignEl.style.marginTop = '8px';
+      alignEl.innerHTML = `<strong>Aligned narratives</strong><div class="muted small">${Object.entries(agg.aligned).map(([k,arr])=>`${k}: ${arr.join(', ')}`).join(' • ')}</div>`;
+      signalsEl.appendChild(alignEl);
+    }
+
+    statusEl.textContent = `last: ${new Date().toLocaleTimeString()} (articles: ${articles.length})`;
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = 'error';
+  }
+}
+
+/* start/stop controls */
+startBtn.addEventListener('click', ()=>{
+  if(pollTimer) clearInterval(pollTimer);
+  pollOnce(); // immediate
+  pollTimer = setInterval(pollOnce, 30_000); // every 30s
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  statusEl.textContent = 'running';
+});
+stopBtn.addEventListener('click', ()=>{
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  statusEl.textContent = 'stopped';
+});
+refreshBtn.addEventListener('click', ()=> pollOnce());
+
+/* initial chart render if history exists */
+if(timeline.length) chart.update();
+
+/* quick first fetch */
+(async ()=> {
+  // small warmup: attempt a quick fetch to detect CORS/proxy viability
+  try{ await fetchAllFeeds(); }catch(e){ console.warn('warmup fetch failed', e) }
+})();
+
+</script>
 </body>
 </html>
