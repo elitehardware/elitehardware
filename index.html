@@ -271,8 +271,8 @@
                 <p id="source-version">Extracting versions...</p>
             </div>
             <div class="source-card">
-                <h3><span class="source-status checking"></span> SteamCMD API</h3>
-                <p id="source-steamcmd">Checking manifests...</p>
+                <h3><span class="source-status checking"></span> News Content Scan</h3>
+                <p id="source-content">Scanning for updates...</p>
             </div>
         </div>
         
@@ -290,9 +290,9 @@
                 <br>
                 <strong>2. Steam News Feed</strong> - Monitors official patch announcements
                 <br>
-                <strong>3. Version Parser</strong> - Extracts version numbers from news (e.g., "1.2.0", "Build 12345")
+                <strong>3. News Content Scanner</strong> - Deep scans news content for update keywords and changes
                 <br>
-                <strong>4. SteamCMD Manifest API</strong> - Tracks depot manifest IDs (most reliable but often rate-limited)
+                <strong>4. Version Parser</strong> - Extracts version numbers from news (e.g., "1.2.0", "Build 12345")
                 <br><br>
                 <strong>Confidence System:</strong>
                 <br>
@@ -325,9 +325,9 @@
         
         // Tracking state
         let lastStoreUpdateTime = null;
-        let lastManifestID = null;
         let lastNewsID = null;
         let lastVersion = null;
+        let lastContentHash = null;
         let autoCheckEnabled = true;
         let autoCheckInterval = null;
         let nextCheckTime = null;
@@ -343,9 +343,9 @@
         
         // Source status elements
         const sourceStore = document.getElementById('source-store');
-        const sourceSteamCmd = document.getElementById('source-steamcmd');
         const sourceNews = document.getElementById('source-news');
         const sourceVersion = document.getElementById('source-version');
+        const sourceContent = document.getElementById('source-content');
         
         function formatDate(timestamp) {
             const date = new Date(timestamp * 1000);
@@ -448,52 +448,85 @@
             }
         }
         
-        async function checkSteamCmdManifest() {
+        async function checkNewsContent() {
             try {
-                updateSourceStatus(sourceSteamCmd, 'checking', 'Querying depot manifest...');
+                updateSourceStatus(sourceContent, 'checking', 'Scanning news content...');
                 
-                // Try direct access first
-                let response = await fetch(STEAMCMD_API);
-                let data;
+                const proxyUrl = CORS_PROXY + encodeURIComponent(STEAM_NEWS_API);
+                const response = await fetch(proxyUrl);
                 
-                if (!response.ok) {
-                    // Try with CORS proxy
-                    const proxyUrl = CORS_PROXY + encodeURIComponent(STEAMCMD_API);
-                    const proxyResponse = await fetch(proxyUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const proxyData = await response.json();
+                const data = JSON.parse(proxyData.contents);
+                
+                if (!data.appnews?.newsitems || data.appnews.newsitems.length === 0) {
+                    throw new Error('No news items');
+                }
+                
+                // Look for specific update indicators in content
+                const updateIndicators = [
+                    'patch', 'update', 'hotfix', 'fixed', 'changed', 
+                    'improved', 'balance', 'bug', 'issue', 'changelog',
+                    'version', 'build', 'release notes'
+                ];
+                
+                let updateScore = 0;
+                let latestUpdateNews = null;
+                
+                for (const item of data.appnews.newsitems.slice(0, 5)) {
+                    const content = (item.contents || '').toLowerCase();
+                    const title = item.title.toLowerCase();
                     
-                    if (!proxyResponse.ok) throw new Error(`HTTP ${proxyResponse.status}`);
+                    let score = 0;
+                    for (const indicator of updateIndicators) {
+                        if (content.includes(indicator)) score++;
+                        if (title.includes(indicator)) score += 2;
+                    }
                     
-                    const proxyData = await proxyResponse.json();
-                    data = JSON.parse(proxyData.contents);
-                } else {
-                    data = await response.json();
+                    if (score > updateScore) {
+                        updateScore = score;
+                        latestUpdateNews = item;
+                    }
                 }
                 
-                if (!data.data?.[APP_ID]?.depots?.[DEPOT_ID]) {
-                    throw new Error('Depot not found');
+                if (latestUpdateNews) {
+                    // Create a hash of the content to detect changes
+                    const contentString = latestUpdateNews.title + latestUpdateNews.contents;
+                    const contentHash = await simpleHash(contentString);
+                    
+                    const snippet = latestUpdateNews.contents.slice(0, 50).replace(/\s+/g, ' ');
+                    updateSourceStatus(sourceContent, 'active', `Found: "${snippet}..."`);
+                    
+                    return {
+                        success: true,
+                        contentHash: contentHash,
+                        newsItem: latestUpdateNews,
+                        updateScore: updateScore,
+                        changed: lastContentHash !== null && lastContentHash !== contentHash,
+                        firstCheck: lastContentHash === null
+                    };
                 }
                 
-                const depot = data.data[APP_ID].depots[DEPOT_ID];
-                const manifestID = depot.manifests?.public;
-                
-                if (!manifestID) {
-                    throw new Error('No public manifest');
-                }
-                
-                updateSourceStatus(sourceSteamCmd, 'active', `Manifest: ${manifestID.slice(0, 12)}...`);
-                
-                return {
-                    success: true,
-                    manifestID: manifestID,
-                    changed: lastManifestID !== null && lastManifestID !== manifestID,
-                    firstCheck: lastManifestID === null
-                };
+                updateSourceStatus(sourceContent, 'inactive', 'No update content found');
+                return { success: false, changed: false };
                 
             } catch (error) {
-                console.error('SteamCMD error:', error);
-                updateSourceStatus(sourceSteamCmd, 'inactive', 'Rate limited');
+                console.error('News content scan error:', error);
+                updateSourceStatus(sourceContent, 'inactive', 'Scan failed');
                 return { success: false, changed: false };
             }
+        }
+        
+        async function simpleHash(str) {
+            // Simple hash function for content comparison
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return hash.toString();
         }
         
         async function checkSteamNews() {
@@ -587,10 +620,10 @@
             }
             
             // Check all sources simultaneously
-            const [storeResult, manifestResult, newsResult] = await Promise.all([
+            const [storeResult, newsResult, contentResult] = await Promise.all([
                 checkSteamStoreAPI(),
-                checkSteamCmdManifest(),
-                checkSteamNews()
+                checkSteamNews(),
+                checkNewsContent()
             ]);
             
             // Check version from news
@@ -604,13 +637,13 @@
             let sourcesWorking = 0;
             
             if (storeResult.success) sourcesWorking++;
-            if (manifestResult.success) sourcesWorking++;
             if (newsResult.success) sourcesWorking++;
+            if (contentResult.success) sourcesWorking++;
             if (versionResult.success) sourcesWorking++;
             
             if (storeResult.changed) changesDetected++;
-            if (manifestResult.changed) changesDetected++;
             if (newsResult.changed) changesDetected++;
+            if (contentResult.changed) changesDetected++;
             if (versionResult.changed) changesDetected++;
             
             // Determine confidence level
@@ -622,12 +655,12 @@
             // First check initialization
             if (isFirstCheck) {
                 if (storeResult.success) lastStoreUpdateTime = storeResult.updateTime;
-                if (manifestResult.success) lastManifestID = manifestResult.manifestID;
                 if (newsResult.success) {
                     lastNewsID = newsResult.newsID;
                     const formattedDate = formatDate(newsResult.timestamp);
                     lastUpdateEl.textContent = `Latest: ${newsResult.title} (${formattedDate})`;
                 }
+                if (contentResult.success) lastContentHash = contentResult.contentHash;
                 if (versionResult.success) lastVersion = versionResult.version;
                 
                 statusEl.className = 'status old';
@@ -642,8 +675,8 @@
                 
                 // Update stored values
                 if (storeResult.changed) lastStoreUpdateTime = storeResult.updateTime;
-                if (manifestResult.changed) lastManifestID = manifestResult.manifestID;
                 if (newsResult.changed) lastNewsID = newsResult.newsID;
+                if (contentResult.changed) lastContentHash = contentResult.contentHash;
                 if (versionResult.changed) lastVersion = versionResult.version;
                 
                 statusEl.className = 'status new';
