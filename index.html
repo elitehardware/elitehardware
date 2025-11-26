@@ -198,8 +198,8 @@
         const APP_ID = '2807960';
         const DEPOT_ID = '2807961';
         const CHECK_INTERVAL = 300000; // 5 minutes
-        const API_URL = `https://steamdb.info/api/ExtensionGetDepotHistory/?appid=${APP_ID}&branch=public`;
-        const FALLBACK_URL = `https://api.allorigins.win/raw?url=https://steamdb.info/app/${APP_ID}/history/`;
+        const API_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://steamdb.info/api/ExtensionGetDepotHistory/?appid=${APP_ID}&branch=public`)}`;
+        const FALLBACK_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://steamdb.info/app/${APP_ID}/history/`)}`;
         
         let lastBuildID = null;
         let autoCheckEnabled = true;
@@ -252,18 +252,14 @@
             }
             
             try {
-                const response = await fetch(API_URL, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
+                const response = await fetch(API_URL);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 
-                const data = await response.json();
+                const proxyData = await response.json();
+                const data = JSON.parse(proxyData.contents);
                 
                 if (!data.data?.depots?.[DEPOT_ID]?.history?.[0]) {
                     throw new Error('Invalid API response structure');
@@ -326,14 +322,30 @@
                 statusEl.textContent = '⚠️ Using fallback method...';
                 
                 const response = await fetch(FALLBACK_URL);
-                const html = await response.text();
+                const proxyData = await response.json();
+                const html = proxyData.contents;
                 
-                const timeMatch = html.match(/Last updated<\/th><td[^>]*>([^<]+)</);
+                // Try multiple regex patterns for robustness
+                let timeMatch = html.match(/Last\s+updated<\/th>\s*<td[^>]*>([^<]+)</i);
+                
+                if (!timeMatch) {
+                    // Alternative pattern
+                    timeMatch = html.match(/<th[^>]*>Last\s+updated<\/th>\s*<td[^>]*>([^<]+)</i);
+                }
+                
+                if (!timeMatch) {
+                    // Try to find any recent timestamp in the history
+                    const timestampMatch = html.match(/data-time[^>]*>\s*([^<]+)\s*</i);
+                    if (timestampMatch) {
+                        timeMatch = [null, timestampMatch[1]];
+                    }
+                }
                 
                 if (timeMatch) {
-                    lastUpdateEl.textContent = `Latest patch: ${timeMatch[1]} (via fallback)`;
+                    const updateInfo = timeMatch[1].trim();
+                    lastUpdateEl.textContent = `Latest patch: ${updateInfo} (via fallback)`;
                     statusEl.className = 'status error';
-                    statusEl.textContent = '⚠️ Error checking (CORS or rate limit) – Showing last known update from SteamDB page';
+                    statusEl.textContent = '⚠️ Using fallback - Showing last known update from SteamDB';
                 } else {
                     throw new Error('Could not parse fallback data');
                 }
@@ -341,8 +353,8 @@
             } catch (fallbackError) {
                 console.error('Fallback error:', fallbackError);
                 statusEl.className = 'status error';
-                statusEl.textContent = '❌ Unable to check for updates (API and fallback failed)';
-                lastUpdateEl.textContent = 'Please try again later';
+                statusEl.textContent = '❌ Unable to check for updates - Please try again in a few minutes';
+                lastUpdateEl.textContent = 'SteamDB may be rate limiting requests';
             }
         }
         
