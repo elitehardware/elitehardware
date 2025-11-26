@@ -1,465 +1,286 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Live Geopolitical Risk Monitor — RSS (No API)</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Real-time Monero (XMR) Predictor — Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#ffb020;--good:#16a34a;--bad:#ef4444}
-  body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:0;background:linear-gradient(180deg,#071027 0%, #071327 100%);color:#e6eef7}
-  .wrap{max-width:1100px;margin:20px auto;padding:18px}
-  header{display:flex;align-items:center;gap:12px}
-  h1{margin:0;font-size:20px}
-  .grid{display:grid;grid-template-columns:1fr 420px;gap:14px;margin-top:14px}
-  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:12px;border-radius:10px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
-  label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
-  .controls{display:flex;gap:8px;align-items:center}
-  button{background:var(--accent);border:none;color:#071327;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer}
-  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
-  .muted{color:var(--muted);font-size:13px}
-  .small{font-size:13px}
-  .headline{padding:8px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02)}
-  .kw{font-weight:700;color:var(--accent)}
-  .score-circle{width:140px;height:140px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:12px auto;background:linear-gradient(135deg, rgba(255,176,32,0.08), rgba(255,176,32,0.04));border:1px solid rgba(255,176,32,0.08)}
-  .source-toggle{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-  .chip{padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);cursor:pointer}
-  .chip.on{background:linear-gradient(90deg, rgba(16,185,129,0.12), rgba(59,130,246,0.06));border-color:rgba(59,130,246,0.14)}
-  footer{margin-top:12px;color:var(--muted);font-size:13px}
-  .topline{display:flex;justify-content:space-between;align-items:center;gap:20px}
+  body{font-family:Inter,system-ui,Arial;margin:18px;background:#0b1220;color:#e6eef7}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between}
+  h1{font-size:20px;margin:0}
+  .muted{color:#94a3b8;font-size:13px}
+  .grid{display:grid;grid-template-columns:1fr 380px;gap:14px;margin-top:14px}
+  .card{background:#071127;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:8px}
+  button{background:#ffb020;border:none;padding:8px 12px;border-radius:8px;color:#071127;font-weight:700;cursor:pointer}
+  input[type=range]{width:180px}
+  .score{font-size:18px;font-weight:700}
+  .small{font-size:13px;color:#94a3b8}
+  .stat{margin-top:8px}
+  .spark{font-weight:700;color:#60a5fa}
+  a.link{color:#60a5fa}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div>
-      <h1>🛰 Live Geopolitical Risk Monitor (RSS — No API)</h1>
-      <div class="muted small">Aggregates public RSS feeds, computes a transparency-first risk score. Use as demo/awareness only.</div>
+      <h1>🚀 XMR Real-time Predictor (demo)</h1>
+      <div class="muted small">Uses CoinGecko public API for live price & historical market chart (no API key). This is a demo predictor — not financial advice.</div>
     </div>
+    <div class="small muted">Polling interval: <span id="intervalLabel">30</span>s</div>
   </header>
 
   <div class="grid">
-    <!-- left: controls & feed -->
-    <div>
-      <div class="card">
-        <div class="topline">
-          <div>
-            <label class="small">Sensitivity</label>
-            <input id="sensitivity" type="range" min="0.4" max="2.0" step="0.1" value="1.0" />
-          </div>
-          <div style="text-align:right">
-            <div class="muted small">Status: <span id="status">idle</span></div>
-            <div style="margin-top:6px" class="controls">
-              <button id="start">Start</button>
-              <button id="stop" class="ghost" disabled>Stop</button>
-              <button id="refresh" class="ghost">Refresh</button>
-            </div>
-          </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="muted small">Current XMR / USD</div>
+          <div id="price" style="font-size:28px;font-weight:700">–</div>
+          <div class="small muted" id="change24">...</div>
         </div>
-
-        <label class="small">Feeds (toggle to include/exclude)</label>
-        <div id="feedToggles" class="source-toggle"></div>
-
-        <label class="small">Proxies (fallback order — used automatically)</label>
-        <div class="muted small">
-          <div>Using public proxy chain to overcome browser CORS. These are for demos only.</div>
-          <ul class="muted small">
-            <li>https://api.allorigins.win/raw?url=</li>
-            <li>https://thingproxy.freeboard.io/fetch/</li>
-            <li>https://api.allorigins.win/get?url= (fallback)</li>
-          </ul>
+        <div style="text-align:right">
+          <div class="muted small">Prediction (next interval)</div>
+          <div id="pred" style="font-size:20px;font-weight:700">–</div>
+          <div id="predSignal" class="small muted">–</div>
         </div>
       </div>
 
-      <div class="card" style="margin-top:12px">
-        <h3 style="margin:0">Recent matched headlines</h3>
-        <div id="headlines" style="max-height:520px;overflow:auto;margin-top:8px"></div>
+      <div class="stat small">
+        <label>Sensitivity</label>
+        <input id="sensitivity" type="range" min="0.4" max="2.0" step="0.1" value="1.0" />
+        <span id="sensVal" class="spark">1.0×</span>
+      </div>
+
+      <div class="controls">
+        <button id="start">Start</button>
+        <button id="stop" disabled>Stop</button>
+        <button id="oneShot">Refresh Now</button>
+        <label style="margin-left:8px" class="small">Interval (s)
+          <input id="interval" type="number" min="10" max="300" value="30" style="width:72px;margin-left:6px"/>
+        </label>
+      </div>
+
+      <div style="margin-top:12px" class="small muted">Model: regression + EMA. Uses recent market chart (24h) to compute trend; extrapolates one step ahead. For better accuracy use server-side models and more data.</div>
+      <div style="margin-top:12px">
+        <canvas id="chart" height="160"></canvas>
       </div>
     </div>
 
-    <!-- right: viz -->
-    <div>
-      <div class="card">
-        <h3 style="margin:0">Live risk</h3>
-        <div id="scoreWrap">
-          <div id="scoreCircle" class="score-circle">—</div>
-          <div class="muted small" style="text-align:center">0 = low / 100 = high (heuristic)</div>
-        </div>
+    <div class="card">
+      <div>
+        <div class="muted small">Signals & stats</div>
+        <div class="stat"><span class="small muted">EMA(12):</span> <span id="ema12" class="spark">–</span></div>
+        <div class="stat"><span class="small muted">Slope (recent):</span> <span id="slope" class="spark">–</span></div>
+        <div class="stat"><span class="small muted">Model confidence:</span> <span id="conf" class="spark">–</span></div>
+        <div class="stat"><span class="small muted">Last updated:</span> <span id="updated" class="small muted">–</span></div>
       </div>
 
-      <div class="card" style="margin-top:12px">
-        <h3 style="margin:0">Timeline</h3>
-        <canvas id="chart" width="400" height="200" style="margin-top:8px"></canvas>
-      </div>
-
-      <div class="card" style="margin-top:12px">
-        <h3 style="margin:0">Signals & top sources</h3>
-        <div id="signals" style="margin-top:8px"></div>
+      <div style="margin-top:12px">
+        <div class="muted small">About data</div>
+        <div class="small muted">Price & historical chart fetched from CoinGecko endpoints: <span class="muted"><a class="link" href="https://www.coingecko.com/en/api" target="_blank">CoinGecko API</a></span>. Public plan has rate limits — avoid polling faster than a few times per minute for demos. :contentReference[oaicite:2]{index=2}</div>
       </div>
     </div>
   </div>
-
-  <footer>
-    <div class="muted small">Note: This is a heuristic tool for experimentation. It is not an authoritative or predictive intelligence product.</div>
-  </footer>
 </div>
 
 <script>
 /* =========================
-   Configuration & feeds
+   Config & endpoints
    ========================= */
-const FEEDS = {
-  "BBC": "https://feeds.bbci.co.uk/news/world/rss.xml",
-  "Reuters": "https://feeds.reuters.com/reuters/worldNews",
-  "Al Jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
-  "UN": "https://www.un.org/press/en/rss.xml",
-  "NATO": "https://www.nato.int/cps/en/natohq/news_rss.htm"
+const COINGECKO = {
+  simplePrice: (id, vs) => `https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=${vs}&include_24hr_change=true`,
+  marketChart: (id, vs, days) => `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=${vs}&days=${days}&interval=hourly`
 };
 
-// proxy chain (try in order)
-const PROXIES = [
-  "https://api.allorigins.win/raw?url=",
-  "https://thingproxy.freeboard.io/fetch/",
-  "https://api.allorigins.win/get?url=" // some proxies return wrapped JSON — parser handles both
-];
+const COIN_ID = 'monero';
+const VS = 'usd';
+let polling = null;
 
-// Source reliability multipliers
-const SOURCE_RELIABILITY = {
-  "NATO": 1.7,
-  "UN": 1.6,
-  "Reuters": 1.35,
-  "BBC": 1.25,
-  "Al Jazeera": 1.15,
-  "Unknown": 0.8
-};
-
-// Major countries to boost severity
-const MAJOR_COUNTRIES = ["usa","united states","china","russia","iran","north korea","ukraine","nato","israel"];
-
-// Risk factor categories and weights
-const RISK_FACTORS = {
-  military: {keywords: ["missile","troop","invasion","military","airstrike","shelling","drill","mobiliz"], weight: 4},
-  diplomacy: {keywords: ["talks","negotiation","sanction","agreement","ceasefire","diplomat","negotiat"], weight: 2},
-  economic: {keywords: ["oil prices","trade war","sanction","market","inflation"], weight: 2.5},
-  nuclear: {keywords: ["nuclear","uranium","warhead","detonat","atomic"], weight: 8}
-};
-
-// small sentiment lexicon (in-browser; not ML)
-const POS_WORDS = ["peace","agreement","ceasefire","truce","accord","negotiation","deal"];
-const NEG_WORDS = ["attack","invasion","bomb","killed","dead","escalat","strike","retaliat","shelling","casualties"];
-
-/* =========================
-   UI references
-   ========================= */
-const statusEl = document.getElementById('status');
+/* UI refs */
+const priceEl = document.getElementById('price');
+const change24El = document.getElementById('change24');
+const predEl = document.getElementById('pred');
+const predSignalEl = document.getElementById('predSignal');
 const startBtn = document.getElementById('start');
 const stopBtn = document.getElementById('stop');
-const refreshBtn = document.getElementById('refresh');
-const feedToggles = document.getElementById('feedToggles');
-const headlinesEl = document.getElementById('headlines');
-const scoreCircle = document.getElementById('scoreCircle');
-const sensitivityInput = document.getElementById('sensitivity');
-const signalsEl = document.getElementById('signals');
+const oneShotBtn = document.getElementById('oneShot');
+const sensitivityEl = document.getElementById('sensitivity');
+const sensVal = document.getElementById('sensVal');
+const intervalInput = document.getElementById('interval');
+const intervalLabel = document.getElementById('intervalLabel');
+const ema12El = document.getElementById('ema12');
+const slopeEl = document.getElementById('slope');
+const confEl = document.getElementById('conf');
+const updatedEl = document.getElementById('updated');
 
-let enabledFeeds = Object.keys(FEEDS);
-let pollTimer = null;
-let timeline = JSON.parse(localStorage.getItem('risk_timeline') || '[]'); // array of {t, v}
-const MAX_HISTORY = 120;
-
-/* =========================
-   Helpers: fetch with proxy fallbacks
-   ========================= */
-async function fetchWithProxies(url){
-  for(const p of PROXIES){
-    try{
-      const full = p + encodeURIComponent(url);
-      const resp = await fetch(full, {cache: "no-store"});
-      if(!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
-      // some proxies return raw XML; some (allorigins get) returns JSON {contents: "..."}
-      const txt = await resp.text();
-      // try to extract XML if wrapped:
-      if(txt.trim().startsWith('{')){
-        try{
-          const j = JSON.parse(txt);
-          if(j.contents) return j.contents;
-        }catch(e){}
-      }
-      return txt;
-    }catch(e){
-      // try next proxy silently
-      console.warn('proxy failed', p, e);
-    }
-  }
-  throw new Error('All proxies failed');
-}
-
-/* =========================
-   Parse RSS XML -> articles
-   ========================= */
-function parseRSS(xmlText, sourceName){
-  try{
-    const doc = new DOMParser().parseFromString(xmlText, "application/xml");
-    // common item selectors: item (RSS) or entry (Atom)
-    const items = Array.from(doc.querySelectorAll('item, entry')).slice(0,4);
-    return items.map(it => {
-      const title = (it.querySelector('title')?.textContent || '').trim();
-      const desc = (it.querySelector('description')?.textContent || it.querySelector('summary')?.textContent || '').trim();
-      const link = (it.querySelector('link')?.textContent || it.querySelector('link')?.getAttribute('href') || '') || '';
-      const pubDate = (it.querySelector('pubDate')?.textContent || it.querySelector('published')?.textContent || '') || '';
-      return {source: sourceName, title, desc, link, pubDate, text: (title + ' ' + desc).trim()};
-    });
-  }catch(e){
-    console.warn('parse error for', sourceName, e);
-    return [];
-  }
-}
-
-/* =========================
-   Scoring logic
-   ========================= */
-function sentimentScore(text){
-  const t = text.toLowerCase();
-  let s = 0;
-  for(const w of POS_WORDS) if(t.includes(w)) s -= 1;
-  for(const w of NEG_WORDS) if(t.includes(w)) s += 1;
-  return Math.max(-5, Math.min(5, s)); // clamp
-}
-
-function analyzeArticle(article, sensitivity=1.0){
-  const t = article.text.toLowerCase();
-  let severity = 0;
-  const signals = [];
-
-  // category keywords
-  for(const [cat, data] of Object.entries(RISK_FACTORS)){
-    for(const kw of data.keywords){
-      if(t.includes(kw)){
-        severity += data.weight * sensitivity;
-        signals.push({type:cat, kw, weight: data.weight});
-      }
-    }
-  }
-
-  // major country boost
-  for(const c of MAJOR_COUNTRIES){
-    if(t.includes(c)){
-      severity += 5 * sensitivity;
-      signals.push({type:'major_country', kw:c, weight:5});
-    }
-  }
-
-  // sentiment
-  const sent = sentimentScore(t);
-  if(sent > 0) severity -= Math.abs(sent) * 0.8; // positive reduces
-  if(sent < 0) severity += Math.abs(sent) * 1.2; // negative increases
-  // source reliability multiplier applied later at overall aggregation
-
-  return {severity, signals, sentiment: sent};
-}
-
-/* combine article scores into a global score */
-function aggregateScores(articles, sensitivity=1.0){
-  // per-source weighted sum
-  let raw = 0;
-  const perSource = {};
-  const keywordSources = {}; // for narrative alignment
-  const details = [];
-
-  for(const a of articles){
-    const s = analyzeArticle(a, sensitivity);
-    const srcKey = a.source || 'Unknown';
-    const reliability = SOURCE_RELIABILITY[srcKey] || SOURCE_RELIABILITY[Object.keys(SOURCE_RELIABILITY).find(k=>srcKey.includes(k))] || (SOURCE_RELIABILITY['Unknown'] || 1);
-    const weighted = s.severity * reliability;
-
-    raw += weighted;
-    perSource[srcKey] = (perSource[srcKey] || 0) + weighted;
-
-    for(const sig of s.signals){
-      const k = sig.kw;
-      keywordSources[k] = keywordSources[k] || new Set();
-      keywordSources[k].add(srcKey);
-    }
-
-    details.push({article:a, severity:s.severity, weighted, signals:s.signals, sent:s.sentiment});
-  }
-
-  // narrative alignment: count keywords seen in multiple sources
-  let narrativeBoost = 0;
-  const aligned = {};
-  for(const [kw, setSrc] of Object.entries(keywordSources)){
-    if(setSrc.size >= 2){
-      aligned[kw] = Array.from(setSrc);
-      narrativeBoost += 3 * setSrc.size; // increases with number of sources
-    }
-  }
-
-  // normalize raw to 0..100 heuristic
-  // heuristic normalization parameters (tunable)
-  const base = raw + narrativeBoost;
-  // apply diminishing returns scaling
-  const scaled = 100 * (1 - Math.exp(-base / 25));
-  const finalScore = Math.max(0, Math.min(100, Math.round(scaled)));
-
-  return {finalScore, raw, scaled, perSource, aligned, details};
-}
-
-/* =========================
-   UI rendering & loop
-   ========================= */
+/* Chart setup */
 const ctx = document.getElementById('chart').getContext('2d');
 const chart = new Chart(ctx, {
-  type:'line',
-  data:{labels: timeline.map(x=>x.t), datasets:[{label:'Risk', data: timeline.map(x=>x.v), fill:true, tension:0.3}]},
-  options:{responsive:true, scales:{y:{min:0,max:100}}}
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      {label:'Price', data:[], borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.08)', tension:0.2},
+      {label:'Prediction', data:[], borderColor:'#fb7185', borderDash:[6,4], backgroundColor:'rgba(251,113,133,0.02)', tension:0.2}
+    ]
+  },
+  options: {responsive:true, scales:{x:{display:true}, y:{display:true}}}
 });
 
-function updateChart(value){
-  const t = new Date().toLocaleTimeString();
-  timeline.push({t, v: value});
-  if(timeline.length > MAX_HISTORY) timeline.shift();
-  localStorage.setItem('risk_timeline', JSON.stringify(timeline));
-  chart.data.labels = timeline.map(x=>x.t);
-  chart.data.datasets[0].data = timeline.map(x=>x.v);
-  chart.update();
+/* utility: fetch JSON text with timeout */
+async function fetchJson(url, timeout=10000){
+  const controller = new AbortController();
+  const id = setTimeout(()=> controller.abort(), timeout);
+  const res = await fetch(url, {signal: controller.signal});
+  clearTimeout(id);
+  if(!res.ok) throw new Error(res.status + ' ' + res.statusText);
+  return res.json();
 }
 
-/* render feed toggles */
-function makeFeedToggles(){
-  feedToggles.innerHTML = '';
-  Object.keys(FEEDS).forEach(name=>{
-    const chip = document.createElement('div');
-    chip.className = 'chip on';
-    chip.textContent = name;
-    chip.onclick = () => {
-      chip.classList.toggle('on');
-      enabledFeeds = Array.from(feedToggles.querySelectorAll('.chip.on')).map(c=>c.textContent);
-    };
-    feedToggles.appendChild(chip);
-  });
-  // initial enabled list set
-  enabledFeeds = Object.keys(FEEDS);
-}
-makeFeedToggles();
-
-/* render headlines */
-function renderHeadlines(articles, keywords){
-  headlinesEl.innerHTML = '';
-  for(const a of articles){
-    const el = document.createElement('div');
-    el.className = 'headline';
-    // highlight keywords
-    let title = a.title;
-    for(const kw of keywords){
-      const re = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'ig');
-      title = title.replace(re, m => `<span class="kw">${m}</span>`);
-    }
-    el.innerHTML = `<div style="font-weight:700">${title}</div>
-                    <div class="muted small">${a.source} • ${a.pubDate || ''}</div>
-                    <div class="muted small" style="margin-top:6px">${a.desc ? a.desc.substring(0,220) : ''}</div>
-                    <div style="margin-top:6px"><a href="${a.link}" target="_blank" rel="noopener" class="muted small">read</a></div>`;
-    headlinesEl.appendChild(el);
+/* simple EMA */
+function ema(values, period){
+  if(!values.length) return null;
+  const k = 2/(period+1);
+  let emaVal = values[0];
+  for(let i=1;i<values.length;i++){
+    emaVal = values[i]*k + emaVal*(1-k);
   }
+  return emaVal;
 }
 
-/* fetch all enabled feeds */
-async function fetchAllFeeds(){
-  statusEl.textContent = 'fetching...';
-  const articles = [];
-  const feedNames = enabledFeeds.length ? enabledFeeds : Object.keys(FEEDS);
-  for(const name of feedNames){
-    const url = FEEDS[name];
-    try{
-      const xml = await fetchWithProxies(url);
-      const parsed = parseRSS(xml, name);
-      articles.push(...parsed);
-    }catch(e){
-      console.warn('feed failed', name, e);
-      // skip silently
-    }
+/* linear regression slope & intercept */
+function linearRegression(xs, ys){
+  const n = xs.length;
+  if(n===0) return null;
+  let sumX=0,sumY=0,sumXY=0,sumXX=0;
+  for(let i=0;i<n;i++){
+    sumX += xs[i]; sumY += ys[i];
+    sumXY += xs[i]*ys[i]; sumXX += xs[i]*xs[i];
   }
-  statusEl.textContent = 'done';
-  return articles;
+  const slope = (n*sumXY - sumX*sumY) / (n*sumXX - sumX*sumX);
+  const intercept = (sumY - slope*sumX)/n;
+  return {slope, intercept};
 }
 
-/* one polling pass */
-async function pollOnce(){
+/* normalize timestamps to index array */
+function prepareSeries(prices){
+  // prices: [[unix_ms, price], ...] from CoinGecko
+  const xs=[], ys=[], labels=[];
+  for(let i=0;i<prices.length;i++){
+    xs.push(i);
+    ys.push(prices[i][1]);
+    const d = new Date(prices[i][0]);
+    labels.push(d.toLocaleTimeString());
+  }
+  return {xs, ys, labels};
+}
+
+/* main single refresh: fetch current price + recent market chart, update UI & model */
+async function refreshOnce(){
   try{
-    const sensitivity = parseFloat(sensitivityInput.value || 1.0);
-    const articles = await fetchAllFeeds();
-    if(!articles.length){
-      statusEl.textContent = 'no articles';
-      return;
+    const sensitivity = parseFloat(sensitivityEl.value);
+    const intervalSec = Math.max(10, Number(intervalInput.value||30));
+    intervalLabel.textContent = intervalSec;
+
+    // 1) fetch simple current price (includes 24h change)
+    const priceUrl = COINGECKO.simplePrice(COIN_ID, VS);
+    const priceData = await fetchJson(priceUrl);
+    const cur = priceData[COIN_ID][VS];
+    const change24 = priceData[COIN_ID][`${VS}_24h_change`];
+
+    priceEl.textContent = `$${cur.toLocaleString(undefined, {maximumFractionDigits:2})}`;
+    change24El.textContent = `24h: ${change24 ? change24.toFixed(2) : '0.00'}%`;
+
+    // 2) fetch recent market chart (24h)
+    const chartUrl = COINGECKO.marketChart(COIN_ID, VS, 1); // 1 day
+    const chartData = await fetchJson(chartUrl);
+    const prices = chartData.prices; // array of [timestamp, price]
+
+    // use last N points (e.g., last 24 points ~ hourly if interval=1day hourly)
+    const N = Math.min(36, prices.length);
+    const recent = prices.slice(-N);
+
+    // prepare series
+    const {xs, ys, labels} = prepareSeries(recent);
+
+    // compute EMA and slope
+    const ema12 = ema(ys, Math.min(12, ys.length));
+    const reg = linearRegression(xs, ys);
+    const slope = reg ? reg.slope : 0;
+
+    // forecast: extrapolate one index ahead: y_next = intercept + slope*(n)
+    const nextX = xs[xs.length-1] + 1;
+    const yNext = reg ? (reg.intercept + reg.slope * nextX) : ys[ys.length-1];
+    const yPred = yNext * (1 + (0.000 * (sensitivity-1))); // small sensitivity adjust (placeholder)
+
+    // model confidence: higher with more points and low residuals
+    let residual=0;
+    if(reg){
+      for(let i=0;i<xs.length;i++){
+        const yHat = reg.intercept + reg.slope*xs[i];
+        residual += Math.abs(yHat - ys[i]);
+      }
     }
+    const avgResidual = reg ? residual / xs.length : 0;
+    const confidence = Math.max(0.2, 1 - Math.min(0.9, avgResidual / (Math.abs(ys[ys.length-1]) || 1)));
 
-    // analyze
-    const agg = aggregateScores(articles, sensitivity);
+    // Update chart: actual series and one-step prediction appended visually
+    chart.data.labels = labels.concat(['next']);
+    chart.data.datasets[0].data = ys.concat([null]); // actual ends
+    chart.data.datasets[1].data = Array(ys.length).fill(null).concat([yPred]); // prediction only at last point
+    chart.update();
 
-    // render headlines (use top matched keywords as highlight)
-    const topKeywords = Object.keys(agg.aligned).length ? Object.keys(agg.aligned) : Object.values(agg.details).flatMap(d=>d.signals.map(s=>s.kw)).slice(0,12);
-    renderHeadlines(articles.slice(0,40), Array.from(new Set(topKeywords)));
+    // display prediction and signals
+    const pct = ((yPred - cur)/cur)*100;
+    predEl.textContent = `$${yPred.toLocaleString(undefined,{maximumFractionDigits:2})} (${pct>=0?'+':''}${pct.toFixed(2)}%)`;
+    predSignalEl.textContent = (pct>0.2 ? 'Bullish signal' : (pct<-0.2 ? 'Bearish signal' : 'Neutral'));
 
-    // display score
-    scoreCircle.textContent = agg.finalScore + '/100';
-    updateChart(agg.finalScore);
+    ema12El.textContent = ema12 ? `$${ema12.toFixed(2)}` : '–';
+    slopeEl.textContent = slope ? slope.toFixed(6) : '–';
+    confEl.textContent = (confidence*100).toFixed(0) + '%';
+    updatedEl.textContent = new Date().toLocaleString();
 
-    // signals panel
-    signalsEl.innerHTML = '';
-    const s1 = document.createElement('div');
-    s1.innerHTML = `<div class="muted small">Raw: ${Math.round(agg.raw)} • Scaled: ${Math.round(agg.scaled)}</div>`;
-    signalsEl.appendChild(s1);
+    // store small history in localStorage (optional)
+    const hist = JSON.parse(localStorage.getItem('xmr_hist')||'[]');
+    hist.push({t: new Date().toISOString(), price: cur, pred: yPred, conf: confidence});
+    if(hist.length>200) hist.shift();
+    localStorage.setItem('xmr_hist', JSON.stringify(hist));
 
-    const srcList = document.createElement('div');
-    srcList.className = 'muted small';
-    srcList.innerHTML = '<strong>Top sources (impact)</strong><br/>';
-    Object.entries(agg.perSource).sort((a,b)=>b[1]-a[1]).slice(0,6).forEach(([src,val])=>{
-      const el = document.createElement('div');
-      el.textContent = `${src}: ${Math.round(val)}`;
-      srcList.appendChild(el);
-    });
-    signalsEl.appendChild(srcList);
-
-    if(Object.keys(agg.aligned).length){
-      const alignEl = document.createElement('div');
-      alignEl.style.marginTop = '8px';
-      alignEl.innerHTML = `<strong>Aligned narratives</strong><div class="muted small">${Object.entries(agg.aligned).map(([k,arr])=>`${k}: ${arr.join(', ')}`).join(' • ')}</div>`;
-      signalsEl.appendChild(alignEl);
-    }
-
-    statusEl.textContent = `last: ${new Date().toLocaleTimeString()} (articles: ${articles.length})`;
-  }catch(e){
-    console.error(e);
-    statusEl.textContent = 'error';
+    // return for potential logging
+    return {cur, change24, yPred, pct, confidence};
+  }catch(err){
+    console.error('refresh error', err);
+    priceEl.textContent = 'error';
+    predEl.textContent = 'error';
+    return null;
   }
 }
 
-/* start/stop controls */
+/* controls */
 startBtn.addEventListener('click', ()=>{
-  if(pollTimer) clearInterval(pollTimer);
-  pollOnce(); // immediate
-  pollTimer = setInterval(pollOnce, 30_000); // every 30s
-  startBtn.disabled = true;
-  stopBtn.disabled = false;
-  statusEl.textContent = 'running';
+  const intervalSec = Math.max(10, Number(intervalInput.value||30));
+  if(polling) clearInterval(polling);
+  refreshOnce();
+  polling = setInterval(refreshOnce, intervalSec*1000);
+  startBtn.disabled = true; stopBtn.disabled = false;
 });
 stopBtn.addEventListener('click', ()=>{
-  if(pollTimer) clearInterval(pollTimer);
-  pollTimer = null;
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-  statusEl.textContent = 'stopped';
+  if(polling) clearInterval(polling);
+  polling = null;
+  startBtn.disabled = false; stopBtn.disabled = true;
 });
-refreshBtn.addEventListener('click', ()=> pollOnce());
+oneShotBtn.addEventListener('click', ()=> refreshOnce());
+sensitivityEl.addEventListener('input', ()=> sensVal.textContent = sensitivityEl.value + '×');
 
-/* initial chart render if history exists */
-if(timeline.length) chart.update();
-
-/* quick first fetch */
+/* initialize quickly */
 (async ()=> {
-  // small warmup: attempt a quick fetch to detect CORS/proxy viability
-  try{ await fetchAllFeeds(); }catch(e){ console.warn('warmup fetch failed', e) }
+  await refreshOnce();
+  chart.update();
 })();
-
 </script>
 </body>
 </html>
