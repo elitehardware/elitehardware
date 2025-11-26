@@ -180,12 +180,12 @@
         <div class="info">
             <h2>ℹ️ How it works</h2>
             <p>
-                This page monitors SteamDB for Battlefield 6 updates every 5 minutes automatically.
-                When a new build is detected, you'll see a green alert, hear an airhorn sound, and the page title will update.
+                This page monitors Steam's news feed for Battlefield 6 updates every 5 minutes automatically.
+                When a new update/patch is detected, you'll see a green alert, hear an airhorn sound, and the page title will update.
                 Works even in background tabs!
             </p>
             <p style="margin-top: 10px;">
-                <strong>App ID:</strong> 2807960 | <strong>Depot ID:</strong> 2807961 (public branch)
+                <strong>App ID:</strong> 2807960 | <strong>Monitoring:</strong> Steam News API
             </p>
         </div>
     </div>
@@ -196,16 +196,17 @@
 
     <script>
         const APP_ID = '2807960';
-        const DEPOT_ID = '2807961';
         const CHECK_INTERVAL = 300000; // 5 minutes
-        const API_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://steamdb.info/api/ExtensionGetDepotHistory/?appid=${APP_ID}&branch=public`)}`;
-        const FALLBACK_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://steamdb.info/app/${APP_ID}/history/`)}`;
+        const STEAM_NEWS_API = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${APP_ID}&count=10&maxlength=300&format=json`;
+        const CORS_PROXY = 'https://api.allorigins.win/get?url=';
         
-        let lastBuildID = null;
+        let lastNewsID = null;
+        let lastNewsTitle = '';
         let autoCheckEnabled = true;
         let autoCheckInterval = null;
         let nextCheckTime = null;
         let isFirstCheck = true;
+        let timerInterval = null;
         
         const statusEl = document.getElementById('status');
         const lastUpdateEl = document.getElementById('lastUpdate');
@@ -214,7 +215,7 @@
         const airhorn = document.getElementById('airhorn');
         
         function formatDate(timestamp) {
-            const date = new Date(timestamp);
+            const date = new Date(timestamp * 1000);
             return date.toLocaleString('en-US', {
                 month: 'short',
                 day: 'numeric',
@@ -252,7 +253,9 @@
             }
             
             try {
-                const response = await fetch(API_URL);
+                // Use CORS proxy to fetch Steam News API
+                const proxyUrl = CORS_PROXY + encodeURIComponent(STEAM_NEWS_API);
+                const response = await fetch(proxyUrl);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -261,28 +264,40 @@
                 const proxyData = await response.json();
                 const data = JSON.parse(proxyData.contents);
                 
-                if (!data.data?.depots?.[DEPOT_ID]?.history?.[0]) {
-                    throw new Error('Invalid API response structure');
+                if (!data.appnews?.newsitems || data.appnews.newsitems.length === 0) {
+                    throw new Error('No news items found');
                 }
                 
-                const latestEntry = data.data.depots[DEPOT_ID].history[0];
-                const buildID = parseInt(latestEntry.buildid);
-                const timestamp = parseInt(latestEntry.timestamp) * 1000; // Convert to milliseconds
+                // Filter for update/patch news (look for keywords in titles)
+                const updateKeywords = ['update', 'patch', 'hotfix', 'game update', 'maintenance'];
+                const updateNews = data.appnews.newsitems.filter(item => {
+                    const title = item.title.toLowerCase();
+                    return updateKeywords.some(keyword => title.includes(keyword));
+                });
+                
+                // If no update-specific news, use the latest news item
+                const latestNews = updateNews.length > 0 ? updateNews[0] : data.appnews.newsitems[0];
+                
+                const newsID = latestNews.gid;
+                const newsTitle = latestNews.title;
+                const timestamp = latestNews.date;
                 
                 const formattedDate = formatDate(timestamp);
-                lastUpdateEl.textContent = `Latest patch: ${formattedDate} (Build ${buildID})`;
+                lastUpdateEl.textContent = `Latest news: ${newsTitle} (${formattedDate})`;
                 
-                if (lastBuildID === null) {
+                if (lastNewsID === null) {
                     // First load
-                    lastBuildID = buildID;
+                    lastNewsID = newsID;
+                    lastNewsTitle = newsTitle;
                     statusEl.className = 'status old';
                     statusEl.textContent = isFirstCheck ? '✅ Monitoring started – No new update since page load' : '✅ No new update';
                     isFirstCheck = false;
-                } else if (buildID > lastBuildID) {
+                } else if (newsID !== lastNewsID) {
                     // NEW UPDATE DETECTED!
-                    lastBuildID = buildID;
+                    lastNewsID = newsID;
+                    lastNewsTitle = newsTitle;
                     statusEl.className = 'status new';
-                    statusEl.textContent = `🚨 NEW UPDATE DETECTED! Build ${buildID} – ${formattedDate}`;
+                    statusEl.textContent = `🚨 NEW UPDATE DETECTED! ${newsTitle}`;
                     document.title = '🔥 UPDATE! Battlefield 6';
                     
                     // Play airhorn
@@ -307,8 +322,10 @@
                 }
                 
             } catch (error) {
-                console.error('Primary API error:', error);
-                await fallbackCheck();
+                console.error('API error:', error);
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ Unable to check for updates - Please try again in a few minutes';
+                lastUpdateEl.textContent = 'Steam API may be temporarily unavailable or rate limiting requests';
             }
             
             if (isManual && autoCheckEnabled) {
@@ -316,51 +333,13 @@
             }
         }
         
-        async function fallbackCheck() {
-            try {
-                statusEl.className = 'status loading';
-                statusEl.textContent = '⚠️ Using fallback method...';
-                
-                const response = await fetch(FALLBACK_URL);
-                const proxyData = await response.json();
-                const html = proxyData.contents;
-                
-                // Try multiple regex patterns for robustness
-                let timeMatch = html.match(/Last\s+updated<\/th>\s*<td[^>]*>([^<]+)</i);
-                
-                if (!timeMatch) {
-                    // Alternative pattern
-                    timeMatch = html.match(/<th[^>]*>Last\s+updated<\/th>\s*<td[^>]*>([^<]+)</i);
-                }
-                
-                if (!timeMatch) {
-                    // Try to find any recent timestamp in the history
-                    const timestampMatch = html.match(/data-time[^>]*>\s*([^<]+)\s*</i);
-                    if (timestampMatch) {
-                        timeMatch = [null, timestampMatch[1]];
-                    }
-                }
-                
-                if (timeMatch) {
-                    const updateInfo = timeMatch[1].trim();
-                    lastUpdateEl.textContent = `Latest patch: ${updateInfo} (via fallback)`;
-                    statusEl.className = 'status error';
-                    statusEl.textContent = '⚠️ Using fallback - Showing last known update from SteamDB';
-                } else {
-                    throw new Error('Could not parse fallback data');
-                }
-                
-            } catch (fallbackError) {
-                console.error('Fallback error:', fallbackError);
-                statusEl.className = 'status error';
-                statusEl.textContent = '❌ Unable to check for updates - Please try again in a few minutes';
-                lastUpdateEl.textContent = 'SteamDB may be rate limiting requests';
-            }
-        }
-        
         function startAutoCheck() {
             if (autoCheckInterval) {
                 clearInterval(autoCheckInterval);
+            }
+            
+            if (timerInterval) {
+                clearInterval(timerInterval);
             }
             
             nextCheckTime = Date.now() + CHECK_INTERVAL;
@@ -371,7 +350,7 @@
             }, CHECK_INTERVAL);
             
             // Update timer every second
-            setInterval(updateNextCheckTimer, 1000);
+            timerInterval = setInterval(updateNextCheckTimer, 1000);
             updateNextCheckTimer();
         }
         
@@ -394,6 +373,10 @@
                 if (autoCheckInterval) {
                     clearInterval(autoCheckInterval);
                     autoCheckInterval = null;
+                }
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
                 }
                 nextCheckTime = null;
                 updateNextCheckTimer();
