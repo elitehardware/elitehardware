@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Battlefield 6 (2042 Next) – Update Checker</title>
+    <title>Battlefield 6 – Update Checker</title>
     <style>
         * {
             margin: 0;
@@ -251,7 +251,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎮 Battlefield 6 (2042 Next) – Multi-Source Update Checker</h1>
+        <h1>🎮 Battlefield 6 – Multi-Source Update Checker</h1>
         
         <div id="status" class="status loading">Initializing multi-source detection...</div>
         <div id="lastUpdate" class="last-update">Checking all sources...</div>
@@ -346,12 +346,17 @@
         }
         
         function extractVersion(text) {
-            // Match version patterns like 1.1.2.0, v1.2.3, 1.2.3.4
+            // Match version patterns like 1.1.2.0, v1.2.3, 1.2.3.4, Update 1.2, Build 12345
             const patterns = [
                 /v?(\d+\.\d+\.\d+\.\d+)/i,
                 /v?(\d+\.\d+\.\d+)/i,
                 /version\s+(\d+\.\d+)/i,
-                /update\s+(\d+\.\d+)/i
+                /update\s+(\d+\.\d+)/i,
+                /patch\s+(\d+\.\d+)/i,
+                /build\s+(\d+)/i,
+                /\bv(\d+)\b/i,
+                /(\d+\.\d+)\s+update/i,
+                /season\s+(\d+)/i
             ];
             
             for (const pattern of patterns) {
@@ -391,36 +396,51 @@
             try {
                 updateSourceStatus(sourceSteamCmd, 'checking', 'Querying depot manifest...');
                 
+                // Try direct access first (no CORS proxy needed for this API)
                 const response = await fetch(STEAMCMD_API);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                if (!response.ok) {
+                    // If direct fails, try with CORS proxy
+                    const proxyUrl = CORS_PROXY + encodeURIComponent(STEAMCMD_API);
+                    const proxyResponse = await fetch(proxyUrl);
+                    
+                    if (!proxyResponse.ok) throw new Error(`HTTP ${proxyResponse.status}`);
+                    
+                    const proxyData = await proxyResponse.json();
+                    const data = JSON.parse(proxyData.contents);
+                    return processManifestData(data);
+                }
                 
                 const data = await response.json();
-                
-                if (!data.data?.[APP_ID]?.depots?.[DEPOT_ID]) {
-                    throw new Error('Depot not found');
-                }
-                
-                const depot = data.data[APP_ID].depots[DEPOT_ID];
-                const manifestID = depot.manifests?.public;
-                
-                if (!manifestID) {
-                    throw new Error('No public manifest');
-                }
-                
-                updateSourceStatus(sourceSteamCmd, 'active', `Manifest: ${manifestID.slice(0, 16)}...`);
-                
-                return {
-                    success: true,
-                    manifestID: manifestID,
-                    changed: lastManifestID !== null && lastManifestID !== manifestID,
-                    firstCheck: lastManifestID === null
-                };
+                return processManifestData(data);
                 
             } catch (error) {
                 console.error('SteamCMD error:', error);
-                updateSourceStatus(sourceSteamCmd, 'inactive', 'Failed to fetch');
+                updateSourceStatus(sourceSteamCmd, 'inactive', 'API unavailable (not critical)');
                 return { success: false, changed: false };
             }
+        }
+        
+        function processManifestData(data) {
+            if (!data.data?.[APP_ID]?.depots?.[DEPOT_ID]) {
+                throw new Error('Depot not found');
+            }
+            
+            const depot = data.data[APP_ID].depots[DEPOT_ID];
+            const manifestID = depot.manifests?.public;
+            
+            if (!manifestID) {
+                throw new Error('No public manifest');
+            }
+            
+            updateSourceStatus(sourceSteamCmd, 'active', `Manifest: ${manifestID.slice(0, 16)}...`);
+            
+            return {
+                success: true,
+                manifestID: manifestID,
+                changed: lastManifestID !== null && lastManifestID !== manifestID,
+                firstCheck: lastManifestID === null
+            };
         }
         
         async function checkSteamNews() {
@@ -449,6 +469,7 @@
                 const latestNews = updateNews.length > 0 ? updateNews[0] : data.appnews.newsitems[0];
                 const newsID = latestNews.gid;
                 const newsTitle = latestNews.title;
+                const newsContent = latestNews.contents || '';
                 const timestamp = latestNews.date;
                 
                 updateSourceStatus(sourceNews, 'active', `Latest: ${newsTitle.slice(0, 40)}...`);
@@ -457,6 +478,7 @@
                     success: true,
                     newsID: newsID,
                     title: newsTitle,
+                    content: newsContent,
                     timestamp: timestamp,
                     changed: lastNewsID !== null && lastNewsID !== newsID,
                     firstCheck: lastNewsID === null
@@ -469,7 +491,7 @@
             }
         }
         
-        async function checkVersion(newsTitle) {
+        async function checkVersion(newsTitle, newsContent = '') {
             try {
                 if (!newsTitle) {
                     updateSourceStatus(sourceVersion, 'inactive', 'No news data');
@@ -478,7 +500,11 @@
                 
                 updateSourceStatus(sourceVersion, 'checking', 'Parsing version...');
                 
-                const version = extractVersion(newsTitle);
+                // Try to extract from title first, then from content
+                let version = extractVersion(newsTitle);
+                if (!version && newsContent) {
+                    version = extractVersion(newsContent);
+                }
                 
                 if (version) {
                     updateSourceStatus(sourceVersion, 'active', `Version: ${version}`);
@@ -489,7 +515,7 @@
                         firstCheck: lastVersion === null
                     };
                 } else {
-                    updateSourceStatus(sourceVersion, 'inactive', 'No version found');
+                    updateSourceStatus(sourceVersion, 'inactive', 'No version in news');
                     return { success: false, changed: false };
                 }
                 
@@ -512,8 +538,11 @@
                 checkSteamNews()
             ]);
             
-            // Check version from news title
-            const versionResult = await checkVersion(newsResult.success ? newsResult.title : null);
+            // Check version from news title and content
+            const versionResult = await checkVersion(
+                newsResult.success ? newsResult.title : null,
+                newsResult.success ? newsResult.content : null
+            );
             
             // Calculate confidence based on how many sources detected changes
             let changesDetected = 0;
@@ -587,7 +616,7 @@
                 statusEl.textContent = `✅ No new update (${sourcesWorking}/3 sources active)`;
                 
                 if (document.title.includes('UPDATE!')) {
-                    document.title = 'Battlefield 6 (2042 Next) – Update Checker';
+                    document.title = 'Battlefield 6 – Update Checker';
                 }
             }
             
