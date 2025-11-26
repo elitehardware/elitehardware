@@ -547,10 +547,25 @@
                 
                 // Filter for update/patch news
                 const updateKeywords = ['update', 'patch', 'hotfix', 'game update', 'maintenance', 'build', 'version', 'release'];
+                
+                // Filter out non-game news
+                const excludeKeywords = ['top sellers', 'best selling', 'weekly chart', 'most played', 'steam charts'];
+                
                 const updateNews = data.appnews.newsitems.filter(item => {
                     const title = item.title.toLowerCase();
                     const content = (item.contents || '').toLowerCase();
-                    return updateKeywords.some(keyword => title.includes(keyword) || content.includes(keyword));
+                    
+                    // Exclude non-game news
+                    const isExcluded = excludeKeywords.some(keyword => 
+                        title.includes(keyword) || content.includes(keyword)
+                    );
+                    
+                    if (isExcluded) return false;
+                    
+                    // Include if it has update keywords
+                    return updateKeywords.some(keyword => 
+                        title.includes(keyword) || content.includes(keyword)
+                    );
                 });
                 
                 const latestNews = updateNews.length > 0 ? updateNews[0] : data.appnews.newsitems[0];
