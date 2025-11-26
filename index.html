@@ -1,531 +1,398 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RedSec LFG - Find Squad Fast</title>
-  <link href="https://unpkg.com/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
-  <style>
-    body { background: #0f172a; color: #e2e8f0; font-family: system-ui; }
-    .card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-    .card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgb(239 68 68 / 0.3); }
-    .toast { 
-      position: fixed; 
-      bottom: 20px; 
-      right: 20px; 
-      padding: 16px 24px; 
-      background: #10b981; 
-      color: white; 
-      border-radius: 8px; 
-      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
-      animation: slideIn 0.3s ease-out;
-      z-index: 1000;
-    }
-    @keyframes slideIn {
-      from { transform: translateX(400px); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-    .pulse-dot {
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    .skeleton {
-      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
-      background-size: 200% 100%;
-      animation: loading 1.5s ease-in-out infinite;
-    }
-    @keyframes loading {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-    .time-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 0.75rem;
-      opacity: 0.8;
-    }
-    .db-status {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 0.875rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      z-index: 1000;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-      transition: all 0.3s ease;
-    }
-    .db-status.connecting {
-      background: #f59e0b;
-      color: white;
-    }
-    .db-status.connected {
-      background: #10b981;
-      color: white;
-    }
-    .db-status.error {
-      background: #ef4444;
-      color: white;
-    }
-    .admin-panel {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      background: rgba(15, 23, 42, 0.95);
-      border: 2px solid #ef4444;
-      border-radius: 12px;
-      padding: 16px;
-      min-width: 200px;
-      z-index: 1000;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    }
-    .admin-toggle {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      background: #ef4444;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 56px;
-      height: 56px;
-      font-size: 24px;
-      cursor: pointer;
-      z-index: 999;
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-      transition: all 0.3s ease;
-    }
-    .admin-toggle:hover {
-      transform: scale(1.1);
-      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.6);
-    }
-    .delete-btn {
-      background: #ef4444;
-      color: white;
-      border: none;
-      padding: 4px 12px;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-weight: 600;
-    }
-    .delete-btn:hover {
-      background: #dc2626;
-      transform: scale(1.05);
-    }
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
-      animation: fadeIn 0.2s ease;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    .modal-content {
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 24px;
-      max-width: 400px;
-      width: 90%;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-      animation: slideUp 0.3s ease;
-    }
-    @keyframes slideUp {
-      from { transform: translateY(20px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-  </style>
-</head>
-<body class="min-h-screen py-8 px-4">
-  <!-- Database Status Badge -->
-  <div class="db-status connecting" id="dbStatus">
-    <span class="pulse-dot inline-block w-2 h-2 bg-white rounded-full"></span>
-    <span>Connecting to database...</span>
-  </div>
-
-  <div class="max-w-4xl mx-auto">
-    <h1 class="text-4xl md:text-5xl font-bold text-center mb-2 text-red-500">RedSec LFG</h1>
-    <p class="text-center text-lg mb-8">Find a squad in seconds • No Discord required</p>
-
-    <!-- Post Form -->
-    <div class="bg-slate-800 rounded-xl p-6 mb-10 shadow-xl">
-      <h2 class="text-2xl font-bold mb-4">Post LFG</h2>
-      <form id="lfgForm" class="grid md:grid-cols-3 gap-4">
-        <input 
-          required 
-          placeholder="Username / Gamertag" 
-          class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
-          id="name"
-          maxlength="30"
-          autocomplete="off"
-        />
-        <input 
-          required 
-          placeholder="Discord link or tag" 
-          class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
-          id="discord"
-          autocomplete="off"
-        />
-        <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="platform">
-          <option value="" disabled selected>Platform</option>
-          <option>PC</option><option>PlayStation</option><option>Xbox</option><option>Mobile</option><option>Cross-Platform</option>
-        </select>
-        <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="region">
-          <option value="" disabled selected>Region</option>
-          <option>NA East</option><option>NA West</option><option>EU</option><option>Asia</option><option>OCE</option><option>SA</option>
-        </select>
-        <select required class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" id="mic">
-          <option value="" disabled selected>Mic?</option>
-          <option>Yes</option><option>No</option><option>Optional</option>
-        </select>
-        <input 
-          placeholder="Note (optional)" 
-          class="px-4 py-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" 
-          id="note"
-          maxlength="50"
-          autocomplete="off"
-        />
-        <button type="submit" id="submitBtn" class="md:col-span-3 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-lg text-xl transition-all">
-          🚀 POST LFG (expires in 2 hours)
-        </button>
-      </form>
-    </div>
-
-    <!-- Filters -->
-    <div class="flex flex-wrap gap-3 mb-8 justify-center">
-      <input id="search" placeholder="🔍 Search anything…" class="px-4 py-2 bg-slate-800 rounded-lg flex-1 min-w-[200px] focus:ring-2 focus:ring-red-500 outline-none"/>
-      <select id="filterPlatform" class="px-4 py-2 bg-slate-800 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
-        <option value="">All Platforms</option>
-        <option>PC</option><option>PlayStation</option><option>Xbox</option><option>Mobile</option><option>Cross-Platform</option>
-      </select>
-      <select id="filterRegion" class="px-4 py-2 bg-slate-800 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
-        <option value="">All Regions</option>
-        <option>NA East</option><option>NA West</option><option>EU</option><option>Asia</option><option>OCE</option><option>SA</option>
-      </select>
-      <button onclick="location.reload()" class="px-6 py-2 bg-slate-700 rounded-lg hover:bg-slate-600 transition-all">Clear</button>
-    </div>
-
-    <!-- Live Listings -->
-    <div id="listings" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div class="skeleton rounded-xl h-64"></div>
-      <div class="skeleton rounded-xl h-64"></div>
-      <div class="skeleton rounded-xl h-64"></div>
-    </div>
-    <p class="text-center mt-10 text-gray-500 flex items-center justify-center gap-2" id="count">
-      <span class="pulse-dot inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-      Connecting to database...
-    </p>
-  </div>
-
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-  import { getDatabase, ref, push, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-  // Your Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyDRi-OXdRhqhmuBKlEtYgDMqwqab2mZf-c",
-    authDomain: "redsec-lfg.firebaseapp.com",
-    databaseURL: "https://redsec-lfg-default-rtdb.firebaseio.com", // Added the database URL
-    projectId: "redsec-lfg",
-    storageBucket: "redsec-lfg.firebasestorage.app",
-    messagingSenderId: "969373318708",
-    appId: "1:969373318708:web:c5a61792dc27d30a441461",
-    measurementId: "G-HXNKL7195D"
-  };
-
-  let db, postsRef;
-  const RATE_LIMIT_KEY = 'redsec_last_post';
-  const RATE_LIMIT_MS = 30000;
-
-  // Update database status indicator
-  function updateDBStatus(status, message) {
-    const statusEl = document.getElementById('dbStatus');
-    statusEl.className = `db-status ${status}`;
-    
-    const icon = status === 'connected' ? '✓' : status === 'error' ? '✗' : '⟳';
-    const pulseClass = status === 'connecting' ? 'pulse-dot inline-block w-2 h-2 bg-white rounded-full' : 'inline-block w-2 h-2 bg-white rounded-full';
-    
-    statusEl.innerHTML = `
-      <span class="${pulseClass}">${status === 'connected' || status === 'error' ? '' : ''}</span>
-      <span>${icon} ${message}</span>
-    `;
-
-    // Auto-hide success message after 3 seconds
-    if (status === 'connected') {
-      setTimeout(() => {
-        statusEl.style.opacity = '0.7';
-        statusEl.style.transform = 'scale(0.9)';
-      }, 3000);
-    }
-  }
-
-  // Initialize Firebase
-  try {
-    updateDBStatus('connecting', 'Connecting to database...');
-    
-    const app = initializeApp(firebaseConfig);
-    db = getDatabase(app);
-    postsRef = ref(db, 'lfg-posts');
-    
-    console.log("✅ Firebase initialized");
-    
-    // Listen for real-time updates
-    onValue(postsRef, (snapshot) => {
-      updateDBStatus('connected', 'Connected • Live updates enabled');
-      renderPosts(snapshot.val());
-    }, (error) => {
-      console.error("Database read failed:", error);
-      updateDBStatus('error', 'Connection failed');
-      showToast("Failed to load posts. Check Firebase setup.", "error");
-      document.getElementById("count").innerHTML = 
-        `<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span> Database error - check console`;
-    });
-    
-    // Clean expired posts every minute
-    setInterval(cleanExpiredPosts, 60000);
-    
-  } catch (err) {
-    console.error("Firebase init failed:", err);
-    updateDBStatus('error', 'Connection failed');
-    showToast("Failed to connect to Firebase", "error");
-    document.getElementById("listings").innerHTML = `
-      <div class="col-span-full bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
-        <div class="text-6xl mb-4">⚠️</div>
-        <h3 class="text-2xl font-bold mb-2">Database Connection Failed</h3>
-        <p class="text-gray-400 mb-4">Make sure you've created a Realtime Database in Firebase Console:</p>
-        <ol class="text-left inline-block text-gray-400 mb-4 space-y-2">
-          <li>1. Go to Firebase Console → Realtime Database</li>
-          <li>2. Click "Create Database"</li>
-          <li>3. Choose a location (us-central1 recommended)</li>
-          <li>4. Start in "Test mode" for now</li>
-        </ol>
-        <button onclick="location.reload()" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold">
-          🔄 Retry Connection
-        </button>
-      </div>
-    `;
-  }
-
-  function showToast(message, type = 'success') {
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-    
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.style.background = type === 'error' ? '#ef4444' : '#10b981';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-  }
-
-  function sanitize(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function validateDiscord(input) {
-    const discordLinkPattern = /discord\.(gg|com\/invite)\//i;
-    const discordTagPattern = /^.{2,32}#\d{4}$|^@?[a-z0-9_.]{2,32}$/i;
-    return discordLinkPattern.test(input) || discordTagPattern.test(input);
-  }
-
-  function canPost() {
-    const lastPost = localStorage.getItem(RATE_LIMIT_KEY);
-    if (lastPost) {
-      const timeSince = Date.now() - parseInt(lastPost);
-      if (timeSince < RATE_LIMIT_MS) {
-        const remaining = Math.ceil((RATE_LIMIT_MS - timeSince) / 1000);
-        showToast(`Please wait ${remaining}s before posting again`, 'error');
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function timeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  }
-
-  document.getElementById("lfgForm").onsubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!db) {
-      showToast("Database not ready. Please refresh.", 'error');
-      return;
-    }
-
-    if (!canPost()) return;
-
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Posting...';
-
-    const discordInput = e.target.discord.value.trim();
-    
-    if (!validateDiscord(discordInput)) {
-      showToast("Please enter a valid Discord link or tag", 'error');
-      submitBtn.disabled = false;
-      submitBtn.textContent = '🚀 POST LFG (expires in 2 hours)';
-      return;
-    }
-
-    try {
-      const data = {
-        name: sanitize(e.target.name.value.trim()),
-        discord: sanitize(discordInput),
-        platform: e.target.platform.value,
-        region: e.target.region.value,
-        mic: e.target.mic.value,
-        note: sanitize(e.target.note.value.trim() || ''),
-        time: Date.now(),
-        expires: Date.now() + 2*60*60*1000
-      };
-      
-      await push(postsRef, data);
-      localStorage.setItem(RATE_LIMIT_KEY, Date.now().toString());
-      e.target.reset();
-      showToast("✅ Posted! Your LFG is now live!");
-    } catch (err) {
-      console.error("Post failed:", err);
-      showToast("Failed to post. Please try again.", 'error');
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = '🚀 POST LFG (expires in 2 hours)';
-    }
-  };
-
-  async function cleanExpiredPosts() {
-    if (!db) return;
-    
-    onValue(postsRef, (snap) => {
-      const posts = snap.val();
-      if (!posts) return;
-      
-      Object.entries(posts).forEach(([key, post]) => {
-        if (post.expires < Date.now()) {
-          remove(ref(db, `lfg-posts/${key}`));
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battlefield 6 (2042 Next) – Update Checker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      });
-    }, { onlyOnce: true });
-  }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 2.5em;
+            text-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        .status {
+            font-size: 2em;
+            text-align: center;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+        
+        .status.new {
+            background: rgba(0, 255, 0, 0.1);
+            color: #00ff00;
+            border: 3px solid #00ff00;
+            animation: pulse 1s infinite;
+        }
+        
+        .status.old {
+            background: rgba(255, 68, 68, 0.1);
+            color: #ff4444;
+            border: 3px solid #ff4444;
+        }
+        
+        .status.loading {
+            background: rgba(255, 255, 0, 0.1);
+            color: #ffff00;
+            border: 3px solid #ffff00;
+        }
+        
+        .status.error {
+            background: rgba(255, 136, 0, 0.1);
+            color: #ff8800;
+            border: 3px solid #ff8800;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        .last-update {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            color: #aaaaaa;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            padding: 15px 30px;
+            font-size: 1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .btn-check {
+            background: linear-gradient(135deg, #00cc00 0%, #00ff00 100%);
+            color: #000000;
+        }
+        
+        .btn-toggle {
+            background: linear-gradient(135deg, #0066cc 0%, #0088ff 100%);
+            color: #ffffff;
+        }
+        
+        .btn-toggle.off {
+            background: linear-gradient(135deg, #666666 0%, #888888 100%);
+        }
+        
+        .info {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .info h2 {
+            margin-bottom: 10px;
+            color: #00ff00;
+        }
+        
+        .info p {
+            line-height: 1.6;
+            color: #cccccc;
+        }
+        
+        .next-check {
+            text-align: center;
+            font-size: 0.9em;
+            color: #888888;
+            margin-top: 10px;
+        }
 
-  function renderPosts(postsData) {
-    let posts = [];
-    
-    if (postsData) {
-      posts = Object.entries(postsData)
-        .map(([key, post]) => ({ ...post, id: key }))
-        .filter(p => p.expires > Date.now() && p.name && p.discord);
-    }
-
-    const search = document.getElementById("search").value.toLowerCase();
-    const filterPlatform = document.getElementById("filterPlatform").value;
-    const filterRegion = document.getElementById("filterRegion").value;
-
-    if (search) {
-      posts = posts.filter(p => 
-        p.name.toLowerCase().includes(search) ||
-        p.discord.toLowerCase().includes(search) ||
-        p.platform.toLowerCase().includes(search) ||
-        p.region.toLowerCase().includes(search) ||
-        (p.note && p.note.toLowerCase().includes(search))
-      );
-    }
-
-    if (filterPlatform) posts = posts.filter(p => p.platform === filterPlatform);
-    if (filterRegion) posts = posts.filter(p => p.region === filterRegion);
-
-    document.getElementById("count").innerHTML = 
-      `<span class="pulse-dot inline-block w-2 h-2 bg-green-500 rounded-full"></span> ${posts.length} players looking right now`;
-
-    const listingsEl = document.getElementById("listings");
-    
-    if (posts.length === 0) {
-      listingsEl.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">📭 No players found. Be the first to post!</div>';
-      return;
-    }
-
-    listingsEl.innerHTML = posts
-      .sort((a,b) => b.time - a.time)
-      .map(p => `
-        <div class="card bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700">
-          <div class="flex justify-between items-start mb-3">
-            <div class="font-bold text-xl text-red-400">${p.name}</div>
-            <div class="time-badge text-gray-400">⏱️ ${timeAgo(p.time)}</div>
-          </div>
-          <div class="text-sm my-3 flex flex-wrap gap-2">
-            <span class="bg-slate-700 px-3 py-1 rounded-full">🎮 ${p.platform}</span>
-            <span class="bg-slate-700 px-3 py-1 rounded-full">🌍 ${p.region}</span>
-            <span class="bg-slate-700 px-3 py-1 rounded-full">🎤 ${p.mic}</span>
-          </div>
-          ${p.note ? `<div class="text-sm text-gray-400 mb-4 italic">"${p.note}"</div>` : ''}
-          <a href="${p.discord.startsWith('http') ? p.discord : '#'}" 
-             ${p.discord.startsWith('http') ? 'target="_blank" rel="noopener noreferrer"' : `onclick="window.showDiscordTag('${p.discord}'); return false;"`}
-             class="block text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-all">
-             ${p.discord.startsWith('http') ? '💬 JOIN DISCORD' : '💬 ' + p.discord}
-          </a>
-          ${p.discord.startsWith('http') ? `
-          <button onclick="window.copyDiscord('${p.discord.replace(/'/g, "\\'")}', event)" 
-                  class="mt-2 w-full text-sm text-gray-400 hover:text-white transition-colors">
-            📋 Copy invite
-          </button>
-          ` : ''}
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8em;
+            }
+            .status {
+                font-size: 1.5em;
+                padding: 20px;
+            }
+            button {
+                padding: 12px 20px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Battlefield 6 (2042 Next) – Update Checker</h1>
+        
+        <div id="status" class="status loading">Initializing...</div>
+        <div id="lastUpdate" class="last-update">Loading patch information...</div>
+        <div id="nextCheck" class="next-check"></div>
+        
+        <div class="controls">
+            <button class="btn-check" onclick="checkForUpdate(true)">🔍 Check Now</button>
+            <button id="toggleBtn" class="btn-toggle" onclick="toggleAutoCheck()">Auto-check: ON</button>
         </div>
-      `).join("");
-  }
+        
+        <div class="info">
+            <h2>ℹ️ How it works</h2>
+            <p>
+                This page monitors SteamDB for Battlefield 6 updates every 5 minutes automatically.
+                When a new build is detected, you'll see a green alert, hear an airhorn sound, and the page title will update.
+                Works even in background tabs!
+            </p>
+            <p style="margin-top: 10px;">
+                <strong>App ID:</strong> 2807960 | <strong>Depot ID:</strong> 2807961 (public branch)
+            </p>
+        </div>
+    </div>
 
-  document.getElementById("search").addEventListener('input', () => {
-    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
-  });
-  
-  document.getElementById("filterPlatform").addEventListener('change', () => {
-    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
-  });
-  
-  document.getElementById("filterRegion").addEventListener('change', () => {
-    if (db) onValue(postsRef, (snapshot) => renderPosts(snapshot.val()), { onlyOnce: true });
-  });
+    <audio id="airhorn" preload="auto">
+        <source src="https://cdn.jsdelivr.net/gh/mattbrictson/airhorn@master/airhorn.mp3" type="audio/mpeg">
+    </audio>
 
-  // Expose functions globally for inline handlers
-  window.showToast = showToast;
-  window.showDiscordTag = (tag) => showToast(`Discord: ${tag}`);
-  window.copyDiscord = (text, event) => {
-    event?.preventDefault();
-    event?.stopPropagation();
-    navigator.clipboard.writeText(text).then(() => {
-      showToast("✅ Copied to clipboard!");
-    }).catch(() => {
-      showToast("Failed to copy", "error");
-    });
-  };
-</script>
-
-<footer class="text-center mt-20 text-gray-600 text-sm">
-  Hosted on GitHub Pages • Powered by Firebase • Made for RedSec players ❤️
-</footer>
+    <script>
+        const APP_ID = '2807960';
+        const DEPOT_ID = '2807961';
+        const CHECK_INTERVAL = 300000; // 5 minutes
+        const API_URL = `https://steamdb.info/api/ExtensionGetDepotHistory/?appid=${APP_ID}&branch=public`;
+        const FALLBACK_URL = `https://api.allorigins.win/raw?url=https://steamdb.info/app/${APP_ID}/history/`;
+        
+        let lastBuildID = null;
+        let autoCheckEnabled = true;
+        let autoCheckInterval = null;
+        let nextCheckTime = null;
+        let isFirstCheck = true;
+        
+        const statusEl = document.getElementById('status');
+        const lastUpdateEl = document.getElementById('lastUpdate');
+        const nextCheckEl = document.getElementById('nextCheck');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const airhorn = document.getElementById('airhorn');
+        
+        function formatDate(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+        }
+        
+        function updateNextCheckTimer() {
+            if (!autoCheckEnabled || !nextCheckTime) {
+                nextCheckEl.textContent = '';
+                return;
+            }
+            
+            const now = Date.now();
+            const remaining = Math.max(0, nextCheckTime - now);
+            const seconds = Math.floor(remaining / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            
+            if (remaining > 0) {
+                nextCheckEl.textContent = `Next auto-check in: ${minutes}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                nextCheckEl.textContent = 'Checking...';
+            }
+        }
+        
+        async function checkForUpdate(isManual = false) {
+            if (isManual) {
+                statusEl.className = 'status loading';
+                statusEl.textContent = '🔄 Checking for updates...';
+            }
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.data?.depots?.[DEPOT_ID]?.history?.[0]) {
+                    throw new Error('Invalid API response structure');
+                }
+                
+                const latestEntry = data.data.depots[DEPOT_ID].history[0];
+                const buildID = parseInt(latestEntry.buildid);
+                const timestamp = parseInt(latestEntry.timestamp) * 1000; // Convert to milliseconds
+                
+                const formattedDate = formatDate(timestamp);
+                lastUpdateEl.textContent = `Latest patch: ${formattedDate} (Build ${buildID})`;
+                
+                if (lastBuildID === null) {
+                    // First load
+                    lastBuildID = buildID;
+                    statusEl.className = 'status old';
+                    statusEl.textContent = isFirstCheck ? '✅ Monitoring started – No new update since page load' : '✅ No new update';
+                    isFirstCheck = false;
+                } else if (buildID > lastBuildID) {
+                    // NEW UPDATE DETECTED!
+                    lastBuildID = buildID;
+                    statusEl.className = 'status new';
+                    statusEl.textContent = `🚨 NEW UPDATE DETECTED! Build ${buildID} – ${formattedDate}`;
+                    document.title = '🔥 UPDATE! Battlefield 6';
+                    
+                    // Play airhorn
+                    try {
+                        airhorn.currentTime = 0;
+                        const playPromise = airhorn.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(err => {
+                                console.log('Audio autoplay blocked:', err);
+                            });
+                        }
+                    } catch (err) {
+                        console.log('Audio play error:', err);
+                    }
+                } else {
+                    // No new update
+                    statusEl.className = 'status old';
+                    statusEl.textContent = '✅ No new update';
+                    if (document.title.includes('UPDATE!')) {
+                        document.title = 'Battlefield 6 (2042 Next) – Update Checker';
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Primary API error:', error);
+                await fallbackCheck();
+            }
+            
+            if (isManual && autoCheckEnabled) {
+                restartAutoCheck();
+            }
+        }
+        
+        async function fallbackCheck() {
+            try {
+                statusEl.className = 'status loading';
+                statusEl.textContent = '⚠️ Using fallback method...';
+                
+                const response = await fetch(FALLBACK_URL);
+                const html = await response.text();
+                
+                const timeMatch = html.match(/Last updated<\/th><td[^>]*>([^<]+)</);
+                
+                if (timeMatch) {
+                    lastUpdateEl.textContent = `Latest patch: ${timeMatch[1]} (via fallback)`;
+                    statusEl.className = 'status error';
+                    statusEl.textContent = '⚠️ Error checking (CORS or rate limit) – Showing last known update from SteamDB page';
+                } else {
+                    throw new Error('Could not parse fallback data');
+                }
+                
+            } catch (fallbackError) {
+                console.error('Fallback error:', fallbackError);
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ Unable to check for updates (API and fallback failed)';
+                lastUpdateEl.textContent = 'Please try again later';
+            }
+        }
+        
+        function startAutoCheck() {
+            if (autoCheckInterval) {
+                clearInterval(autoCheckInterval);
+            }
+            
+            nextCheckTime = Date.now() + CHECK_INTERVAL;
+            
+            autoCheckInterval = setInterval(() => {
+                nextCheckTime = Date.now() + CHECK_INTERVAL;
+                checkForUpdate(false);
+            }, CHECK_INTERVAL);
+            
+            // Update timer every second
+            setInterval(updateNextCheckTimer, 1000);
+            updateNextCheckTimer();
+        }
+        
+        function restartAutoCheck() {
+            if (autoCheckEnabled) {
+                startAutoCheck();
+            }
+        }
+        
+        function toggleAutoCheck() {
+            autoCheckEnabled = !autoCheckEnabled;
+            
+            if (autoCheckEnabled) {
+                toggleBtn.textContent = 'Auto-check: ON';
+                toggleBtn.className = 'btn-toggle';
+                startAutoCheck();
+            } else {
+                toggleBtn.textContent = 'Auto-check: OFF';
+                toggleBtn.className = 'btn-toggle off';
+                if (autoCheckInterval) {
+                    clearInterval(autoCheckInterval);
+                    autoCheckInterval = null;
+                }
+                nextCheckTime = null;
+                updateNextCheckTimer();
+            }
+        }
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkForUpdate(false);
+            startAutoCheck();
+        });
+    </script>
 </body>
 </html>
