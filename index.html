@@ -12,13 +12,10 @@
       padding: 20px;
     }
     #price {
-      font-size: 2.2em;
+      font-size: 2em;
       margin-top: 15px;
     }
-    canvas {
-      max-width: 700px;
-      margin: auto;
-    }
+    canvas { max-width: 700px; margin: auto; }
   </style>
 </head>
 <body>
@@ -27,72 +24,59 @@
   <p>Real data — No API key needed.</p>
 
   <div id="price">Loading price...</div>
-  <canvas id="priceChart"></canvas>
+  <canvas id="chart"></canvas>
 
-  <!-- Chart Library -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
-    const COIN_ID = 'monero';
-    const VS_CURRENCY = 'usd';
-    const corsProxy = 'https://cors.isomorphic-git.org/';
+    const COIN = 'monero';
+    const VS = 'usd';
+    const corsProxy = 'https://api.allorigins.win/raw?url=';
 
     const gecko = {
-      simplePrice: () => `https://api.coingecko.com/api/v3/simple/price?ids=${COIN_ID}&vs_currencies=${VS_CURRENCY}`,
-      marketChart: () => `https://api.coingecko.com/api/v3/coins/${COIN_ID}/market_chart?vs_currency=${VS_CURRENCY}&days=1`
+      price: () => `https://api.coingecko.com/api/v3/simple/price?ids=${COIN}&vs_currencies=${VS}`,
+      chart: () => `https://api.coingecko.com/api/v3/coins/${COIN}/market_chart?vs_currency=${VS}&days=1`
     };
 
-    // 🎯 Fetch and display live price
-    async function updatePrice() {
+    async function getPrice() {
       try {
-        const res = await fetch(corsProxy + gecko.simplePrice());
+        const res = await fetch(corsProxy + gecko.price());
         const data = await res.json();
-        const price = data[COIN_ID][VS_CURRENCY];
-        document.getElementById("price").textContent = `Current Price: $${price}`;
+        document.getElementById("price").textContent =
+          `Current Price: $${data[COIN][VS]}`;
       } catch (err) {
         document.getElementById("price").textContent = "⚠ Error fetching price.";
         console.error(err);
       }
     }
 
-    // 📈 Fetch last 24hr data + simple trend prediction
     async function loadChart() {
       try {
-        const res = await fetch(corsProxy + gecko.marketChart());
+        const res = await fetch(corsProxy + gecko.chart());
         const data = await res.json();
-
         const prices = data.prices.map(p => ({ time: new Date(p[0]).toLocaleTimeString(), value: p[1] }));
+
         const labels = prices.map(p => p.time);
         const values = prices.map(p => p.value);
 
-        const trend = values[values.length - 1] > values[0]
-          ? "🔼 Likely Uptrend"
-          : "🔻 Possible Downtrend";
-
-        new Chart(document.getElementById("priceChart"), {
+        new Chart(document.getElementById("chart"), {
           type: 'line',
           data: {
-            labels: labels,
-            datasets: [{
-              label: 'Price ($)',
-              data: values,
-              borderWidth: 2
-            }]
+            labels,
+            datasets: [{ label: 'XMR Price ($)', data: values, borderWidth: 2 }]
           },
           options: { responsive: true }
         });
-
-        document.getElementById("price").textContent += ` | Prediction: ${trend}`;
       } catch (err) {
-        console.error("Error loading chart", err);
+        console.error("Chart error:", err);
       }
     }
 
-    // 🔄 Auto refresh
-    updatePrice();
+    // START
+    getPrice();
     loadChart();
-    setInterval(updatePrice, 15000); // 15 sec refresh
-    setInterval(loadChart, 60000);   // Chart refresh every minute
+    setInterval(getPrice, 15000);
+    setInterval(loadChart, 60000);
   </script>
 
 </body>
